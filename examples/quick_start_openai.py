@@ -24,7 +24,7 @@ def setup_agent():
         description="An interactive chat agent with memory",
         config={
             "api_key": os.getenv("OPENAI_API_KEY"),
-            "model": "gpt-3.5-turbo"
+            "model": "gpt-4o"
         },
         tool_registry=tool_registry
     )
