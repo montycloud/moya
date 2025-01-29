@@ -67,6 +67,14 @@ class SimpleMemoryAgent(Agent):
 
         return response_text
 
+    def handle_message_stream(self, message: str, **kwargs) -> str:
+        """
+        Stream version of handle_message - required by Agent base class.
+        Yields the same response as handle_message.
+        """
+        response = self.handle_message(message, **kwargs)
+        yield response
+
 
 def main():
     # 2. Create the memory repository and tool
