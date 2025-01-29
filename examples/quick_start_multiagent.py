@@ -1,5 +1,6 @@
 import os
 from moya.agents.openai_agent import OpenAIAgent
+from moya.agents.remote_agent import RemoteAgent
 from moya.classifiers.llm_classifier import LLMClassifier
 from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
 from moya.registry.agent_registry import AgentRegistry
@@ -47,21 +48,33 @@ def create_spanish_agent(tool_registry) -> OpenAIAgent:
     agent.setup()
     return agent
 
+def create_remote_agent(tool_registry) -> RemoteAgent:
+    """Create a remote agent for joke-related queries."""
+    agent = RemoteAgent(
+        agent_name="joke_agent",
+        description="Remote agent specialized in telling jokes",
+        base_url="http://localhost:8000",
+        tool_registry=tool_registry
+    )
+    agent.setup()
+    return agent
+
 def create_classifier_agent() -> OpenAIAgent:
-    """Create a classifier agent for language detection."""
-    system_prompt = """You are a language classifier. Your job is to determine if the user's message:
-    1. Requires or requests a response in English
-    2. Requires or requests a response in Spanish
-    3. Requires or requests a response in any other language
+    """Create a classifier agent for language and task detection."""
+    system_prompt = """You are a classifier. Your job is to determine the best agent based on the user's message:
+    1. If the message requests or implies a need for a joke, return 'joke_agent'
+    2. If the message is in English or requests English response, return 'english_agent'
+    3. If the message is in Spanish or requests Spanish response, return 'spanish_agent'
+    4. For any other language requests, return null
     
-    Analyze both the language of the message and any explicit requests for language preference.
-    Return only 'english_agent' for English, 'spanish_agent' for Spanish, or null for other languages."""
+    Analyze both the language and intent of the message.
+    Return only the agent name as specified above."""
     
     agent = OpenAIAgent(
         agent_name="classifier",
         system_prompt=system_prompt,
         model_name="gpt-4o",
-        description="Language classifier for routing messages"
+        description="Language and task classifier for routing messages"
     )
     agent.setup()
     return agent
@@ -74,12 +87,14 @@ def setup_orchestrator():
     # Create agents
     english_agent = create_english_agent(tool_registry)
     spanish_agent = create_spanish_agent(tool_registry)
+    joke_agent = create_remote_agent(tool_registry)
     classifier_agent = create_classifier_agent()
 
     # Set up agent registry
     registry = AgentRegistry()
     registry.register_agent(english_agent)
     registry.register_agent(spanish_agent)
+    registry.register_agent(joke_agent)
 
     # Create and configure the classifier
     classifier = LLMClassifier(classifier_agent)
