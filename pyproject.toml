@@ -1,0 +1,27 @@
+[build-system]
+requires = [
+    "setuptools>=61.0", 
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "moya-ai"
+version = "0.1.0"
+description = "A reference implementation of the Moya AI framework."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+  { name="MontyCloud", email="kannan@montycloud.com" }
+]
+keywords = ["python", "moya"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "pyyaml>=6.0",   # for YAML config
+]
+requires-python = ">=3.10" 

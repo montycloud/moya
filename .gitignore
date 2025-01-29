@@ -1,0 +1,21 @@
+# Byte-compiled
+__pycache__/
+
+# Distribution / packaging
+.Python
+build/
+dist/
+wheels/
+MANIFEST
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VSCode
+.vscode/
+
+# git
+.git/
+
+# venv
+venv/
