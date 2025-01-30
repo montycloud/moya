@@ -30,7 +30,9 @@ Interactive chat example using OpenAI agent with conversation memory.
 
 ```python
 # filepath: /Users/kannan/src/github/moya/examples/quick_start_openai.py
-# ...existing code...
+
+python -m examples.quick_start_openai
+
 ```
 
 #### Bedrock Agent
@@ -39,7 +41,8 @@ Interactive chat example using BedrockAgent with conversation memory.
 
 ```python
 # filepath: /Users/kannan/src/github/moya/examples/quick_start_bedrock.py
-# ...existing code...
+
+AWS_PROFILE=my_profile_name python -m examples.quick_start_bedrock
 ```
 
 #### Multi-Agent Orchestration
@@ -48,16 +51,20 @@ Example demonstrating multi-agent orchestration with language and task classific
 
 ```python
 # filepath: /Users/kannan/src/github/moya/examples/quick_start_multiagent.py
-# ...existing code...
+
+python -m examples.quick_start_multiagent
 ```
 
 #### Dynamic Agent Creation
 
 Example demonstrating dynamic agent creation and registration during runtime.
+![moya](./media/Dynamic_Agents.mov)
 
 ```python
 # filepath: /Users/kannan/src/github/moya/examples/dynamic_agents.py
-# ...existing code...
+
+
+python -m examples.dynamic_agents
 ```
 
 ### Directory Structure
