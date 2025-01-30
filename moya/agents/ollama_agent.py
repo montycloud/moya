@@ -8,6 +8,7 @@ import requests
 import json
 from typing import Any, Dict, Optional
 from moya.agents.base_agent import Agent
+from ..messages.voice_message import VoiceMessage
 
 
 class OllamaAgent(Agent):
@@ -110,3 +111,22 @@ class OllamaAgent(Agent):
             error_message = f"[OllamaAgent error: {str(e)}]"
             print(error_message)
             yield error_message
+
+    def handle_voice(self, voice_message: VoiceMessage) -> str:
+        """Process a voice message by converting it to text and handling the text."""
+        text = self.speech_to_text(voice_message)
+        return self.handle_message(text)
+    
+    def text_to_speech(self, text: str) -> VoiceMessage:
+        """
+        Convert text to speech using Ollama's TTS capability if available.
+        Note: This is a placeholder - implement when Ollama adds TTS support.
+        """
+        raise NotImplementedError("Text-to-speech not yet supported by Ollama")
+    
+    def speech_to_text(self, voice_message: VoiceMessage) -> str:
+        """
+        Convert speech to text using Ollama's STT capability if available.
+        Note: This is a placeholder - implement when Ollama adds STT support.
+        """
+        raise NotImplementedError("Speech-to-text not yet supported by Ollama")

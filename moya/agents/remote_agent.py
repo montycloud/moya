@@ -8,6 +8,8 @@ import requests
 import sseclient
 from typing import Any, Dict, Optional, Iterator
 from moya.agents.base_agent import Agent
+from ..messages.voice_message import VoiceMessage
+import base64
 
 class RemoteAgent(Agent):
     """
@@ -142,6 +144,88 @@ class RemoteAgent(Agent):
             error_message = f"[RemoteAgent error: {str(e)}]"
             print(error_message)
             yield error_message
+
+    def handle_voice(self, voice_message: VoiceMessage) -> str:
+        """Send voice message to remote endpoint for processing."""
+        try:
+            # Convert audio data to base64
+            if isinstance(voice_message.audio_data, np.ndarray):
+                audio_bytes = voice_message.audio_data.tobytes()
+            else:
+                audio_bytes = voice_message.audio_data
+            
+            audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+            
+            # Prepare request payload
+            payload = {
+                "audio": audio_b64,
+                "sample_rate": voice_message.sample_rate,
+                "format": voice_message.format,
+                "text_content": voice_message.text_content,
+                "duration": voice_message.duration
+            }
+            
+            # Send to remote endpoint
+            response = requests.post(
+                f"{self.base_url}/voice/process",
+                json=payload,
+                headers=self.headers
+            )
+            response.raise_for_status()
+            
+            return response.json()["response"]
+        except Exception as e:
+            raise RuntimeError(f"Voice processing failed: {str(e)}")
+    
+    def text_to_speech(self, text: str) -> VoiceMessage:
+        """Convert text to speech using remote endpoint."""
+        try:
+            response = requests.post(
+                f"{self.base_url}/voice/tts",
+                json={"text": text},
+                headers=self.headers
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            return VoiceMessage(
+                audio_data=base64.b64decode(data["audio"]),
+                sample_rate=data["sample_rate"],
+                text_content=text,
+                format=data.get("format", "wav")
+            )
+        except Exception as e:
+            raise RuntimeError(f"Text-to-speech failed: {str(e)}")
+    
+    def speech_to_text(self, voice_message: VoiceMessage) -> str:
+        """Convert speech to text using remote endpoint."""
+        try:
+            # Convert audio data to base64
+            if isinstance(voice_message.audio_data, np.ndarray):
+                audio_bytes = voice_message.audio_data.tobytes()
+            else:
+                audio_bytes = voice_message.audio_data
+                
+            audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+            
+            # Prepare request payload
+            payload = {
+                "audio": audio_b64,
+                "sample_rate": voice_message.sample_rate,
+                "format": voice_message.format
+            }
+            
+            # Send to remote endpoint
+            response = requests.post(
+                f"{self.base_url}/voice/stt",
+                json=payload,
+                headers=self.headers
+            )
+            response.raise_for_status()
+            
+            return response.json()["text"]
+        except Exception as e:
+            raise RuntimeError(f"Speech-to-text failed: {str(e)}")
 
     def __del__(self):
         """Cleanup the session when the agent is destroyed."""

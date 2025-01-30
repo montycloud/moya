@@ -17,6 +17,7 @@ Agents can:
 
 import abc
 from typing import Any, Dict, List, Optional
+from ..messages.voice_message import VoiceMessage
 
 
 class Agent(abc.ABC):
@@ -100,6 +101,27 @@ class Agent(abc.ABC):
         :yield: Chunks of the agent's response as strings.
         """
         raise NotImplementedError("Subclasses must implement handle_message_stream().")
+
+    @abc.abstractmethod
+    def handle_voice(self, voice_message: VoiceMessage) -> str:
+        """
+        Process a voice message and return a text response.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def text_to_speech(self, text: str) -> VoiceMessage:
+        """
+        Convert text to speech.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def speech_to_text(self, voice_message: VoiceMessage) -> str:
+        """
+        Convert speech to text.
+        """
+        raise NotImplementedError
 
     def call_tool(self, tool_name: str, method_name: str, *args, **kwargs) -> Any:
         """
