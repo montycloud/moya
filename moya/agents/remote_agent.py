@@ -2,7 +2,10 @@
 RemoteAgent for Moya.
 
 An Agent that communicates with a remote API endpoint to generate responses.
+
 """
+# TODO: setup agent authentication and error handling.
+
 
 import requests
 import sseclient

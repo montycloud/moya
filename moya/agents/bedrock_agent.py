@@ -5,6 +5,8 @@ An Agent that uses AWS Bedrock API to generate responses,
 pulling AWS credentials from environment or AWS configuration.
 """
 
+# Todo: Implement more configuration freedom for the agent.
+
 import json
 import boto3
 from typing import Any, Dict, Optional

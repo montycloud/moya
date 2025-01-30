@@ -15,6 +15,10 @@ Agents can:
   through a MemoryTool if registered in the tool registry.
 """
 
+# TODO: Implement proper tool handling support for agents. 
+#       Add support for agent specific tools spec
+# TODO: Port tool-related methods from SimpleOrchestrator.
+
 import abc
 from typing import Any, Dict, List, Optional
 
