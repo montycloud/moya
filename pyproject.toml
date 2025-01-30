@@ -23,5 +23,11 @@ classifiers = [
 ]
 dependencies = [
   "pyyaml>=6.0",   # for YAML config
+  "boto3>=1.36.9",
+  "typing>=3.10.0",
+  "requests>=2.32.3",
+  "openai>=1.60.1",
+  "fastapi>=0.115.7",
+  "uvicorn>=0.34.0"
 ]
 requires-python = ">=3.10" 
