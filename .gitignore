@@ -19,3 +19,6 @@ MANIFEST
 
 # venv
 venv/
+
+# egg-info
+*.egg-info/
