@@ -9,9 +9,18 @@ to generate responses, pulling API key from the environment.
 
 import os
 from openai import OpenAI
+from dataclasses import dataclass
 
 from typing import Any, Dict, Optional
-from moya.agents.base_agent import Agent
+from moya.agents.base_agent import Agent, AgentConfig
+
+
+@dataclass
+class OpenAIAgentConfig(AgentConfig):
+    api_key: Optional[str] = None
+    api_base: Optional[str] = None
+    organization: Optional[str] = None
+    model_name: str = "gpt-4"
 
 
 class OpenAIAgent(Agent):
@@ -23,10 +32,9 @@ class OpenAIAgent(Agent):
         self,
         agent_name: str,
         description: str,
-        model_name: str = "gpt-4o",
         config: Optional[Dict[str, Any]] = None,
         tool_registry: Optional[Any] = None,
-        system_prompt: str = "You are a helpful AI assistant."
+        agent_config: Optional[OpenAIAgentConfig] = None
     ):
         """
         :param agent_name: Unique name or identifier for the agent.
@@ -34,7 +42,7 @@ class OpenAIAgent(Agent):
         :param model_name: The OpenAI model name (e.g., "gpt-3.5-turbo").
         :param config: Optional config dict (unused by default).
         :param tool_registry: Optional ToolRegistry to enable tool calling.
-        :param system_prompt: Default system prompt for context.
+        :param agent_config: Optional configuration for the agent.
         """
         super().__init__(
             agent_name=agent_name,
@@ -43,8 +51,9 @@ class OpenAIAgent(Agent):
             config=config,
             tool_registry=tool_registry
         )
-        self.model_name = model_name
-        self.system_prompt = system_prompt
+        self.agent_config = agent_config or OpenAIAgentConfig()
+        self.system_prompt = self.agent_config.system_prompt
+        self.model_name = self.agent_config.model_name
 
     def setup(self) -> None:
         """

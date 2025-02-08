@@ -16,21 +16,20 @@ def setup_memory_components():
     tool_registry.register_tool(memory_tool)
     return tool_registry
 
-def create_english_agent(tool_registry) -> OpenAIAgent:
-    """Create an English-speaking OpenAI agent."""
-    system_prompt = """You are a helpful AI assistant that always responds in English.
-    You should be polite, informative, and maintain a professional tone.
-    If asked to speak in any other language, politely decline and continue in English."""
-    
-    agent = OpenAIAgent(
+def create_english_agent(tool_registry):
+    agent_config = OpenAIAgentConfig(
+        system_prompt="""You are a helpful AI assistant that always responds in English.
+        You should be polite, informative, and maintain a professional tone.""",
+        model_name="gpt-4",
+        temperature=0.7
+    )
+
+    return OpenAIAgent(
         agent_name="english_agent",
-        system_prompt=system_prompt,
-        model_name="gpt-4o",
-        description="English language specialist that provides responses only in English",
+        description="English language specialist",
+        agent_config=agent_config,
         tool_registry=tool_registry
     )
-    agent.setup()
-    return agent
 
 def create_spanish_agent(tool_registry) -> OpenAIAgent:
     """Create a Spanish-speaking OpenAI agent."""

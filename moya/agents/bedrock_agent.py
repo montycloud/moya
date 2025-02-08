@@ -11,7 +11,16 @@ import json
 import boto3
 from typing import Any, Dict, Optional
 from moya.agents.base_agent import Agent
+from dataclasses import dataclass
 
+@dataclass
+class BedrockAgentConfig(AgentConfig):
+    model_id: str = "anthropic.claude-v2"
+    region: str = "us-east-1"
+    max_tokens_to_sample: int = 2000
+    temperature: float = 0.7
+    top_p: float = 0.9
+    top_k: int = 250
 
 class BedrockAgent(Agent):
     """
@@ -22,10 +31,9 @@ class BedrockAgent(Agent):
         self,
         agent_name: str,
         description: str,
-        model_id: str = "anthropic.claude-v2",
         config: Optional[Dict[str, Any]] = None,
         tool_registry: Optional[Any] = None,
-        system_prompt: str = "You are a helpful AI assistant."
+        agent_config: Optional[BedrockAgentConfig] = None
     ):
         """
         :param agent_name: Unique name or identifier for the agent.
@@ -42,9 +50,10 @@ class BedrockAgent(Agent):
             config=config,
             tool_registry=tool_registry
         )
-        self.model_id = model_id
-        self.system_prompt = system_prompt
-        self.client = None
+        self.agent_config = agent_config or BedrockAgentConfig()
+        self.system_prompt = self.agent_config.system_prompt
+        self.model_id = self.agent_config.model_id
+        self.region = self.agent_config.region
 
     def setup(self) -> None:
         """
@@ -55,7 +64,7 @@ class BedrockAgent(Agent):
         try:
             self.client = boto3.client(
                 service_name='bedrock-runtime',
-                region_name=self.config.get('region', 'us-east-1')
+                region_name=self.region
             )
         except Exception as e:
             raise EnvironmentError(
@@ -72,16 +81,16 @@ class BedrockAgent(Agent):
                 prompt = f"\n\nHuman: {message}\n\nAssistant:"
                 body = {
                     "prompt": self.system_prompt + prompt,
-                    "max_tokens_to_sample": 2000,
-                    "temperature": 0.7
+                    "max_tokens_to_sample": self.agent_config.max_tokens_to_sample,
+                    "temperature": self.agent_config.temperature
                 }
             else:
                 # Handle other model types here
                 body = {
                     "inputText": message,
                     "textGenerationConfig": {
-                        "maxTokenCount": 2000,
-                        "temperature": 0.7
+                        "maxTokenCount": self.agent_config.max_tokens_to_sample,
+                        "temperature": self.agent_config.temperature
                     }
                 }
 
@@ -105,15 +114,15 @@ class BedrockAgent(Agent):
                 prompt = f"\n\nHuman: {message}\n\nAssistant:"
                 body = {
                     "prompt": self.system_prompt + prompt,
-                    "max_tokens_to_sample": 2000,
-                    "temperature": 0.7
+                    "max_tokens_to_sample": self.agent_config.max_tokens_to_sample,
+                    "temperature": self.agent_config.temperature
                 }
             else:
                 body = {
                     "inputText": message,
                     "textGenerationConfig": {
-                        "maxTokenCount": 2000,
-                        "temperature": 0.7
+                        "maxTokenCount": self.agent_config.max_tokens_to_sample,
+                        "temperature": self.agent_config.temperature
                     }
                 }
 

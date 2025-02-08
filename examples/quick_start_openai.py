@@ -7,7 +7,7 @@ from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
-from moya.agents.openai_agent import OpenAIAgent
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 import os
 import sys
 
@@ -18,14 +18,22 @@ def setup_agent():
     tool_registry = ToolRegistry()
     tool_registry.register_tool(memory_tool)
 
+    # Create agent configuration
+    agent_config = OpenAIAgentConfig(
+        system_prompt="You are a helpful AI assistant specialized in engaging conversations.",
+        model_name="gpt-4",
+        temperature=0.7,
+        max_tokens=2000,
+        api_key=os.getenv("OPENAI_API_KEY"),
+        api_base=None,  # Use default OpenAI API base
+        organization=None  # Use default organization
+    )
+
     # Create OpenAI agent with memory capabilities
     agent = OpenAIAgent(
         agent_name="chat_agent",
         description="An interactive chat agent with memory",
-        config={
-            "api_key": os.getenv("OPENAI_API_KEY"),
-            "model": "gpt-4o"
-        },
+        agent_config=agent_config,
         tool_registry=tool_registry
     )
     agent.setup()

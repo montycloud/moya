@@ -21,7 +21,23 @@ Agents can:
 
 import abc
 from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
 
+@dataclass
+class AgentConfig:
+    """Base configuration class for agents"""
+    system_prompt: str = "You are a helpful AI assistant."
+    model_name: str = "default"
+    temperature: float = 0.7
+    max_tokens: int = 2000
+    top_p: float = 1.0
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+    stop_sequences: list = None
+    
+    def __post_init__(self):
+        if self.stop_sequences is None:
+            self.stop_sequences = []
 
 class Agent(abc.ABC):
     """

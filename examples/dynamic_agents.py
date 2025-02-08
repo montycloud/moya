@@ -22,20 +22,23 @@ def setup_memory_components():
 
 def create_initial_classifier() -> OpenAIAgent:
     """Create the initial classifier with basic routing."""
-    system_prompt = """You are a classifier that routes messages to appropriate agents.
-    Given a user message and list of available specialized agents, select the most appropriate agent.
-    Currently available agents:
-    - english_agent: Default agent that responds in English
-    
-    If the message starts with 'Create new agent', return 'CREATOR' as this requires agent creation.
-    Otherwise, return the most appropriate agent name from the available agents list.
-    Return only the agent name, nothing else."""
+    classifier_config = OpenAIAgentConfig(
+        system_prompt="""You are a classifier that routes messages to appropriate agents.
+        Given a user message and list of available specialized agents, select the most appropriate agent.
+        Currently available agents:
+        - english_agent: Default agent that responds in English
+        
+        If the message starts with 'Create new agent', return 'CREATOR' as this requires agent creation.
+        Otherwise, return the most appropriate agent name from the available agents list.
+        Return only the agent name, nothing else.""",
+        model_name="gpt-4",
+        temperature=0.7
+    )
     
     agent = OpenAIAgent(
         agent_name="classifier",
-        system_prompt=system_prompt,
-        model_name="gpt-4o",
-        description="Dynamic message router"
+        description="Dynamic message router",
+        agent_config=classifier_config
     )
     agent.setup()
     return agent
@@ -63,11 +66,16 @@ def create_new_agent(tool_registry, agents_info: Dict[str, Dict[str, Any]]) -> O
     description = input("Enter agent description: ").strip()
     system_prompt = input("Enter system prompt: ").strip()
     
+    agent_config = OpenAIAgentConfig(
+        system_prompt=system_prompt,
+        model_name="gpt-4",
+        temperature=0.7
+    )
+    
     agent = OpenAIAgent(
         agent_name=agent_name,
         description=description,
-        system_prompt=system_prompt,
-        model_name="gpt-4o",
+        agent_config=agent_config,
         tool_registry=tool_registry
     )
     agent.setup()
@@ -95,11 +103,16 @@ def main():
     registry = AgentRegistry()
     
     # Create and register initial English agent
+    english_config = OpenAIAgentConfig(
+        system_prompt="You are a helpful assistant that responds in English.",
+        model_name="gpt-4",
+        temperature=0.7
+    )
+    
     english_agent = OpenAIAgent(
         agent_name="english_agent",
         description="Default English language agent",
-        system_prompt="You are a helpful assistant that responds in English.",
-        model_name="gpt-4o",
+        agent_config=english_config,
         tool_registry=tool_registry
     )
     english_agent.setup()

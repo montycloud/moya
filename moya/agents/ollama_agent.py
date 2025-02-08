@@ -7,7 +7,17 @@ An Agent that uses Ollama's API to generate responses using locally hosted model
 import requests
 import json
 from typing import Any, Dict, Optional
-from moya.agents.base_agent import Agent
+from dataclasses import dataclass
+from moya.agents.base_agent import Agent, AgentConfig
+
+
+@dataclass
+class OllamaAgentConfig(AgentConfig):
+    base_url: str = "http://localhost:11434"
+    model_name: str = "llama2"
+    context_window: int = 4096
+    num_ctx: int = 4096
+    repeat_penalty: float = 1.1
 
 
 class OllamaAgent(Agent):
@@ -19,20 +29,16 @@ class OllamaAgent(Agent):
         self,
         agent_name: str,
         description: str,
-        model_name: str = "llama2",
         config: Optional[Dict[str, Any]] = None,
         tool_registry: Optional[Any] = None,
-        system_prompt: str = "You are a helpful AI assistant.",
-        base_url: str = "http://localhost:11434"
+        agent_config: Optional[OllamaAgentConfig] = None
     ):
         """
         :param agent_name: Unique name or identifier for the agent.
         :param description: A brief explanation of the agent's capabilities.
-        :param model_name: The Ollama model name (e.g., "llama2", "mistral").
         :param config: Optional config dict (unused by default).
         :param tool_registry: Optional ToolRegistry to enable tool calling.
-        :param system_prompt: Default system prompt for context.
-        :param base_url: Ollama API base URL.
+        :param agent_config: Optional OllamaAgentConfig instance.
         """
         super().__init__(
             agent_name=agent_name,
@@ -41,9 +47,10 @@ class OllamaAgent(Agent):
             config=config,
             tool_registry=tool_registry
         )
-        self.model_name = model_name
-        self.system_prompt = system_prompt
-        self.base_url = base_url.rstrip('/')
+        self.agent_config = agent_config or OllamaAgentConfig()
+        self.system_prompt = self.agent_config.system_prompt
+        self.base_url = self.agent_config.base_url
+        self.model_name = self.agent_config.model_name
 
     def setup(self) -> None:
         """

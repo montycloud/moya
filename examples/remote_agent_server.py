@@ -1,16 +1,23 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
 import asyncio
 import uvicorn
 from asyncio import CancelledError
 
-from moya.agents.openai_agent import OpenAIAgent
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 
 
 app = FastAPI()
+
+class Message(BaseModel):
+    content: str
+    thread_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 def setup_agent():
     """Set up OpenAI agent with memory capabilities."""
@@ -21,15 +28,18 @@ def setup_agent():
     tool_registry.register_tool(memory_tool)
 
     # Create and setup agent
+    agent_config = OpenAIAgentConfig(
+        system_prompt="You are a remote agent that specializes in telling jokes and being entertaining.",
+        model_name="gpt-4",
+        temperature=0.8,
+        max_tokens=1000
+    )
+
     agent = OpenAIAgent(
-        agent_name="remote_chat_agent",
-        description="A remote chat agent with memory",
-        model_name="gpt-4o",
-        tool_registry=tool_registry,
-        system_prompt="""You are a witty AI assistant specialized in telling jokes.
-        Always respond with humor and keep the mood light and entertaining.
-        If asked for a joke, make sure it's appropriate and family-friendly.
-        If asked for anything else, try to include some humor in your response."""
+        agent_name="remote_joke_agent",
+        description="Remote agent specialized in humor",
+        agent_config=agent_config,
+        tool_registry=tool_registry
     )
     agent.setup()
     return agent
@@ -160,6 +170,18 @@ async def chat_stream(request: Request):
             "Transfer-Encoding": "chunked"
         }
     )
+
+@app.post("/generate")
+async def generate_response(message: Message):
+    try:
+        response = agent.handle_message(
+            message=message.content,
+            thread_id=message.thread_id,
+            metadata=message.metadata
+        )
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

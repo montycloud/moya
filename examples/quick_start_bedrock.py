@@ -7,7 +7,7 @@ from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
-from moya.agents.bedrock_agent import BedrockAgent
+from moya.agents.bedrock_agent import BedrockAgent, BedrockAgentConfig
 
 def setup_agent():
     # Set up memory components
@@ -17,13 +17,19 @@ def setup_agent():
     tool_registry.register_tool(memory_tool)
 
     # Create Bedrock agent with memory capabilities
+    agent_config = BedrockAgentConfig(
+        system_prompt="You are a helpful AI assistant with memory capabilities.",
+        model_id="anthropic.claude-v2",
+        region="us-east-1",
+        temperature=0.7,
+        max_tokens_to_sample=2000
+    )
+
     agent = BedrockAgent(
         agent_name="bedrock_chat",
         description="An interactive chat agent with memory using AWS Bedrock",
-        model_id="anthropic.claude-v2",
-        config={"region": "us-east-1"},
-        tool_registry=tool_registry,
-        system_prompt="You are a helpful AI assistant with memory capabilities."
+        agent_config=agent_config,
+        tool_registry=tool_registry
     )
     agent.setup()
 

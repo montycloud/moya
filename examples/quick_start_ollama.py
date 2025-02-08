@@ -7,7 +7,7 @@ from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
-from moya.agents.ollama_agent import OllamaAgent
+from moya.agents.ollama_agent import OllamaAgent, OllamaAgentConfig
 import logging
 import sys
 
@@ -23,11 +23,18 @@ def setup_agent():
     tool_registry.register_tool(memory_tool)
 
     # Create Ollama agent with memory capabilities and correct configuration
+    agent_config = OllamaAgentConfig(
+        system_prompt="You are a helpful AI assistant. Be concise and clear.",
+        model_name="llama2",
+        temperature=0.7,
+        base_url="http://localhost:11434",
+        context_window=4096
+    )
+
     agent = OllamaAgent(
         agent_name="ollama_assistant",
         description="A local AI assistant powered by Ollama with memory",
-        model_name="llama3.1:latest",
-        system_prompt="You are a helpful AI assistant. Be concise and clear.",
+        agent_config=agent_config,
         tool_registry=tool_registry
     )
     
