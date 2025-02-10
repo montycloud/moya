@@ -1,6 +1,6 @@
 import os
-from moya.agents.openai_agent import OpenAIAgent
-from moya.agents.remote_agent import RemoteAgent
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.agents.remote_agent import RemoteAgent, RemoteAgentConfig
 from moya.classifiers.llm_classifier import LLMClassifier
 from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
 from moya.registry.agent_registry import AgentRegistry
@@ -33,15 +33,18 @@ def create_english_agent(tool_registry):
 
 def create_spanish_agent(tool_registry) -> OpenAIAgent:
     """Create a Spanish-speaking OpenAI agent."""
-    system_prompt = """Eres un asistente de IA servicial que siempre responde en español.
-    Debes ser educado, informativo y mantener un tono profesional.
-    Si te piden hablar en otro idioma, declina cortésmente y continúa en español."""
+    agent_config = OpenAIAgentConfig(
+        system_prompt="""Eres un asistente de IA servicial que siempre responde en español.
+        Debes ser educado, informativo y mantener un tono profesional.
+        Si te piden hablar en otro idioma, declina cortésmente y continúa en español.""",
+        model_name="gpt-4o",
+        temperature=0.7
+    )
     
     agent = OpenAIAgent(
         agent_name="spanish_agent",
-        system_prompt=system_prompt,
-        model_name="gpt-4o",
         description="Spanish language specialist that provides responses only in Spanish",
+        agent_config=agent_config,
         tool_registry=tool_registry
     )
     agent.setup()
@@ -52,28 +55,33 @@ def create_remote_agent(tool_registry) -> RemoteAgent:
     agent = RemoteAgent(
         agent_name="joke_agent",
         description="Remote agent specialized in telling jokes",
-        base_url="http://localhost:8000",
-        tool_registry=tool_registry
+        agent_config=RemoteAgentConfig(
+            base_url="http://localhost:8001",
+            verify_ssl=True,
+            auth_token="your-secret-token-here"
+        )
     )
     agent.setup()
     return agent
 
 def create_classifier_agent() -> OpenAIAgent:
     """Create a classifier agent for language and task detection."""
-    system_prompt = """You are a classifier. Your job is to determine the best agent based on the user's message:
-    1. If the message requests or implies a need for a joke, return 'joke_agent'
-    2. If the message is in English or requests English response, return 'english_agent'
-    3. If the message is in Spanish or requests Spanish response, return 'spanish_agent'
-    4. For any other language requests, return null
-    
-    Analyze both the language and intent of the message.
-    Return only the agent name as specified above."""
+    agent_config = OpenAIAgentConfig(
+        system_prompt="""You are a classifier. Your job is to determine the best agent based on the user's message:
+        1. If the message requests or implies a need for a joke, return 'joke_agent'
+        2. If the message is in English or requests English response, return 'english_agent'
+        3. If the message is in Spanish or requests Spanish response, return 'spanish_agent'
+        4. For any other language requests, return null
+        
+        Analyze both the language and intent of the message.
+        Return only the agent name as specified above.""",
+        model_name="gpt-4o"
+    )
     
     agent = OpenAIAgent(
         agent_name="classifier",
-        system_prompt=system_prompt,
-        model_name="gpt-4o",
-        description="Language and task classifier for routing messages"
+        description="Language and task classifier for routing messages",
+        agent_config=agent_config
     )
     agent.setup()
     return agent

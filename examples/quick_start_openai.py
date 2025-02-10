@@ -21,7 +21,7 @@ def setup_agent():
     # Create agent configuration
     agent_config = OpenAIAgentConfig(
         system_prompt="You are a helpful AI assistant specialized in engaging conversations.",
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.7,
         max_tokens=2000,
         api_key=os.getenv("OPENAI_API_KEY"),

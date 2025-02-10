@@ -2,14 +2,22 @@
 RemoteAgent for Moya.
 
 An Agent that communicates with a remote API endpoint to generate responses.
-
 """
-# TODO: setup agent authentication and error handling, use sseclient.
-
 
 import requests
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Iterator
-from moya.agents.base_agent import Agent
+from moya.agents.base_agent import Agent, AgentConfig
+
+
+@dataclass
+class RemoteAgentConfig:
+    """Configuration for RemoteAgent, separate from AgentConfig to avoid inheritance issues"""
+    base_url: str
+    auth_token: Optional[str] = None
+    verify_ssl: bool = True
+    system_prompt: Optional[str] = None
+
 
 class RemoteAgent(Agent):
     """
@@ -20,18 +28,18 @@ class RemoteAgent(Agent):
         self,
         agent_name: str,
         description: str,
-        base_url: str,
         config: Optional[Dict[str, Any]] = None,
         tool_registry: Optional[Any] = None,
+        agent_config: Optional[RemoteAgentConfig] = None,
     ):
         """
         Initialize a RemoteAgent.
         
         :param agent_name: Unique name for the agent
         :param description: Description of the agent's capabilities
-        :param base_url: Base URL of the remote API (e.g., "http://localhost:8000")
         :param config: Optional configuration dictionary
         :param tool_registry: Optional ToolRegistry for tool support
+        :param agent_config: RemoteAgentConfig instance
         """
         super().__init__(
             agent_name=agent_name,
@@ -40,8 +48,22 @@ class RemoteAgent(Agent):
             config=config,
             tool_registry=tool_registry
         )
-        self.base_url = base_url.rstrip('/')
+        if not agent_config:
+            raise ValueError("RemoteAgentConfig is required")
+            
+        self.agent_config = agent_config
+        self.base_url = agent_config.base_url.rstrip('/')
+        self.system_prompt = agent_config.system_prompt
         self.session = requests.Session()
+        
+        # Configure authentication if provided
+        if agent_config.auth_token:
+            self.session.headers.update({
+                "Authorization": f"Bearer {agent_config.auth_token}"
+            })
+        
+        # Configure SSL verification
+        self.session.verify = agent_config.verify_ssl
 
     def setup(self) -> None:
         """
@@ -74,6 +96,10 @@ class RemoteAgent(Agent):
             response.raise_for_status()
             return response.json()["response"]
             
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                return "[RemoteAgent error: Authentication failed]"
+            return f"[RemoteAgent error: {str(e)}]"
         except Exception as e:
             return f"[RemoteAgent error: {str(e)}]"
 
