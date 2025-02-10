@@ -4,7 +4,7 @@ Example demonstrating dynamic agent creation and registration during runtime.
 
 import os
 from typing import Dict, Any
-from moya.agents.openai_agent import OpenAIAgent
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.classifiers.llm_classifier import LLMClassifier
 from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
 from moya.registry.agent_registry import AgentRegistry
@@ -31,7 +31,7 @@ def create_initial_classifier() -> OpenAIAgent:
         If the message starts with 'Create new agent', return 'CREATOR' as this requires agent creation.
         Otherwise, return the most appropriate agent name from the available agents list.
         Return only the agent name, nothing else.""",
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.7
     )
     
@@ -68,7 +68,7 @@ def create_new_agent(tool_registry, agents_info: Dict[str, Dict[str, Any]]) -> O
     
     agent_config = OpenAIAgentConfig(
         system_prompt=system_prompt,
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.7
     )
     
@@ -105,7 +105,7 @@ def main():
     # Create and register initial English agent
     english_config = OpenAIAgentConfig(
         system_prompt="You are a helpful assistant that responds in English.",
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.7
     )
     
