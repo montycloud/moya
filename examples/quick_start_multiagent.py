@@ -17,19 +17,23 @@ def setup_memory_components():
     return tool_registry
 
 def create_english_agent(tool_registry):
+    """Create an English-speaking OpenAI agent."""
     agent_config = OpenAIAgentConfig(
         system_prompt="""You are a helpful AI assistant that always responds in English.
         You should be polite, informative, and maintain a professional tone.""",
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.7
     )
 
-    return OpenAIAgent(
+    agent = OpenAIAgent(
         agent_name="english_agent",
         description="English language specialist",
-        agent_config=agent_config,
-        tool_registry=tool_registry
+        config=None,
+        tool_registry=tool_registry,
+        agent_config=agent_config
     )
+    agent.setup()
+    return agent
 
 def create_spanish_agent(tool_registry) -> OpenAIAgent:
     """Create a Spanish-speaking OpenAI agent."""
@@ -44,8 +48,9 @@ def create_spanish_agent(tool_registry) -> OpenAIAgent:
     agent = OpenAIAgent(
         agent_name="spanish_agent",
         description="Spanish language specialist that provides responses only in Spanish",
-        agent_config=agent_config,
-        tool_registry=tool_registry
+        config=None,
+        tool_registry=tool_registry,
+        agent_config=agent_config
     )
     agent.setup()
     return agent
@@ -81,6 +86,8 @@ def create_classifier_agent() -> OpenAIAgent:
     agent = OpenAIAgent(
         agent_name="classifier",
         description="Language and task classifier for routing messages",
+        config=None,
+        tool_registry=None,
         agent_config=agent_config
     )
     agent.setup()
