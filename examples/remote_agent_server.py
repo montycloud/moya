@@ -14,10 +14,12 @@ from moya.tools.memory_tool import MemoryTool
 
 app = FastAPI()
 
+
 class Message(BaseModel):
     content: str
     thread_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+
 
 def setup_agent():
     """Set up OpenAI agent with memory capabilities."""
@@ -44,13 +46,16 @@ def setup_agent():
     agent.setup()
     return agent
 
+
 # Initialize agent at startup
 agent = setup_agent()
+
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "agent": agent.agent_name}
+
 
 @app.post("/chat")
 async def chat(request: Request):
@@ -58,7 +63,7 @@ async def chat(request: Request):
     data = await request.json()
     message = data['message']
     thread_id = data.get('thread_id', 'default_thread')
-    
+
     # Store user message if memory tool is available
     if agent.tool_registry:
         try:
@@ -74,7 +79,7 @@ async def chat(request: Request):
 
     # Get response from agent
     response = agent.handle_message(message, thread_id=thread_id)
-    
+
     # Store agent response if memory tool is available
     if agent.tool_registry:
         try:
@@ -87,8 +92,9 @@ async def chat(request: Request):
             )
         except Exception as e:
             print(f"Error storing agent response: {e}")
-    
+
     return {"response": response}
+
 
 async def stream_response(message: str, thread_id: str):
     """Stream response from OpenAI agent."""
@@ -109,24 +115,24 @@ async def stream_response(message: str, thread_id: str):
                 sender="user",
                 content=message
             )
-        
+
         # Stream response
         for chunk in agent.handle_message_stream(message, thread_id=thread_id):
             if chunk:
                 # Add chunk to current text
                 current_text += chunk
-                
+
                 # Find word boundaries
                 words = current_text.split()
-                
+
                 if len(words) > 1:  # If we have at least one complete word
                     # Keep the last word in case it's incomplete
                     text_to_send = ' '.join(words[:-1]) + ' '
                     current_text = words[-1]
-                    
+
                     response_text += text_to_send
                     yield await send_chunk(text_to_send)
-                
+
                 await asyncio.sleep(0.01)
 
         # Send any remaining text
@@ -143,15 +149,16 @@ async def stream_response(message: str, thread_id: str):
                 sender=agent.agent_name,
                 content=response_text
             )
-            
+
     except CancelledError:
         if response_text:  # Only log if we actually got some response
             print(f"Client disconnected, stored partial response of length: {len(response_text)}")
         return
-        
+
     except Exception as e:
         error_msg = f"[Error: {str(e)}]"
         yield await send_chunk(error_msg)
+
 
 @app.post("/chat/stream")
 async def chat_stream(request: Request):
@@ -159,7 +166,7 @@ async def chat_stream(request: Request):
     data = await request.json()
     message = data['message']
     thread_id = data.get('thread_id', 'default_thread')
-    
+
     return StreamingResponse(
         stream_response(message, thread_id),
         media_type="text/event-stream",
@@ -170,6 +177,7 @@ async def chat_stream(request: Request):
             "Transfer-Encoding": "chunked"
         }
     )
+
 
 @app.post("/generate")
 async def generate_response(message: Message):

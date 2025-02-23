@@ -2,18 +2,19 @@
 Interactive chat example using Ollama agent with conversation memory.
 """
 
+import logging
+import sys
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.ollama_agent import OllamaAgent, OllamaAgentConfig
-import logging
-import sys
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)  # Changed from DEBUG to INFO
 logger = logging.getLogger(__name__)
+
 
 def setup_agent():
     # Set up memory components
@@ -37,7 +38,7 @@ def setup_agent():
         agent_config=agent_config,
         tool_registry=tool_registry
     )
-    
+
     # Verify Ollama connection with simple test request
     try:
         agent.setup()
@@ -63,6 +64,7 @@ def setup_agent():
 
     return orchestrator, agent
 
+
 def format_conversation_context(messages):
     context = "\nPrevious conversation:\n"
     for msg in messages:
@@ -70,16 +72,17 @@ def format_conversation_context(messages):
         context += f"{sender}: {msg.content}\n"
     return context
 
+
 def main():
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
-    
+
     print("Welcome to Interactive Chat! (Type 'quit' or 'exit' to end)")
     print("-" * 50)
 
     while True:
         user_input = input("\nYou: ").strip()
-        
+
         if user_input.lower() in ['quit', 'exit']:
             print("\nGoodbye!")
             break
@@ -97,7 +100,7 @@ def main():
 
         # Get conversation context
         previous_messages = agent.get_last_n_messages(thread_id, n=5)
-        
+
         if previous_messages:
             context = format_conversation_context(previous_messages)
             enhanced_input = f"{context}\nCurrent user message: {user_input}"
@@ -105,10 +108,10 @@ def main():
             enhanced_input = user_input
 
         logger.debug(f"Enhanced input: {enhanced_input}")
-        
+
         try:
             print("\nAssistant: ", end="", flush=True)
-            
+
             response = ""
             try:
                 # Use enhanced_input instead of user_input for context
@@ -142,6 +145,7 @@ def main():
             logger.error(f"Error during chat: {e}")
             print("\nAn error occurred. Please try again.")
             continue
+
 
 if __name__ == "__main__":
     main()

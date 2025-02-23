@@ -1,4 +1,3 @@
-import os
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.agents.remote_agent import RemoteAgent, RemoteAgentConfig
 from moya.classifiers.llm_classifier import LLMClassifier
@@ -8,6 +7,7 @@ from moya.tools.memory_tool import MemoryTool
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
 
+
 def setup_memory_components():
     """Set up memory components for the agents."""
     memory_repo = InMemoryRepository()
@@ -15,6 +15,7 @@ def setup_memory_components():
     tool_registry = ToolRegistry()
     tool_registry.register_tool(memory_tool)
     return tool_registry
+
 
 def create_english_agent(tool_registry):
     """Create an English-speaking OpenAI agent."""
@@ -35,6 +36,7 @@ def create_english_agent(tool_registry):
     agent.setup()
     return agent
 
+
 def create_spanish_agent(tool_registry) -> OpenAIAgent:
     """Create a Spanish-speaking OpenAI agent."""
     agent_config = OpenAIAgentConfig(
@@ -44,7 +46,7 @@ def create_spanish_agent(tool_registry) -> OpenAIAgent:
         model_name="gpt-4o",
         temperature=0.7
     )
-    
+
     agent = OpenAIAgent(
         agent_name="spanish_agent",
         description="Spanish language specialist that provides responses only in Spanish",
@@ -54,6 +56,7 @@ def create_spanish_agent(tool_registry) -> OpenAIAgent:
     )
     agent.setup()
     return agent
+
 
 def create_remote_agent(tool_registry) -> RemoteAgent:
     """Create a remote agent for joke-related queries."""
@@ -69,6 +72,7 @@ def create_remote_agent(tool_registry) -> RemoteAgent:
     agent.setup()
     return agent
 
+
 def create_classifier_agent() -> OpenAIAgent:
     """Create a classifier agent for language and task detection."""
     agent_config = OpenAIAgentConfig(
@@ -82,7 +86,7 @@ def create_classifier_agent() -> OpenAIAgent:
         Return only the agent name as specified above.""",
         model_name="gpt-4o"
     )
-    
+
     agent = OpenAIAgent(
         agent_name="classifier",
         description="Language and task classifier for routing messages",
@@ -93,11 +97,12 @@ def create_classifier_agent() -> OpenAIAgent:
     agent.setup()
     return agent
 
+
 def setup_orchestrator():
     """Set up the multi-agent orchestrator with all components."""
     # Set up shared components
     tool_registry = setup_memory_components()
-    
+
     # Create agents
     english_agent = create_english_agent(tool_registry)
     spanish_agent = create_spanish_agent(tool_registry)
@@ -111,7 +116,7 @@ def setup_orchestrator():
     registry.register_agent(joke_agent)
 
     # Create and configure the classifier
-    classifier = LLMClassifier(classifier_agent)
+    classifier = LLMClassifier(classifier_agent, default_agent="english_agent")
 
     # Create the orchestrator
     orchestrator = MultiAgentOrchestrator(
@@ -122,6 +127,7 @@ def setup_orchestrator():
 
     return orchestrator
 
+
 def format_conversation_context(messages):
     """Format conversation history for context."""
     context = "\nPrevious conversation:\n"
@@ -130,36 +136,37 @@ def format_conversation_context(messages):
         context += f"{sender}: {msg.content}\n"
     return context
 
+
 def main():
     # Set up the orchestrator and all components
     orchestrator = setup_orchestrator()
     thread_id = "test_conversation"
-    
+
     print("Starting multi-agent chat (type 'exit' to quit)")
     print("You can chat in English or Spanish, or request responses in either language.")
     print("-" * 50)
-    
+
     def stream_callback(chunk):
         print(chunk, end="", flush=True)
-    
+
     while True:
         # Get user input
         user_message = input("\nYou: ").strip()
-        
+
         # Check for exit condition
         if user_message.lower() == 'exit':
             print("\nGoodbye!")
             break
-        
+
         # Get available agents
         agents = orchestrator.agent_registry.list_agents()
         if not agents:
             print("\nNo agents available!")
             continue
-            
+
         # Get the last used agent or default to the first one
         last_agent = orchestrator.agent_registry.get_agent(agents[0])
-        
+
         # Store the user message first
         if last_agent.tool_registry:
             try:
@@ -175,7 +182,7 @@ def main():
 
         # Get conversation context
         previous_messages = last_agent.get_last_n_messages(thread_id, n=5)
-        
+
         # Add context to the user's message if there are previous messages
         if previous_messages:
             context = format_conversation_context(previous_messages)
@@ -191,6 +198,7 @@ def main():
             stream_callback=stream_callback
         )
         print()  # New line after response
+
 
 if __name__ == "__main__":
     main()

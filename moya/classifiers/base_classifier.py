@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
+from moya.agents.agent_info import AgentInfo
+
+
 class BaseClassifier(ABC):
     """Base class for agent classifiers."""
     
     @abstractmethod
-    def classify(self, message: str, thread_id: Optional[str] = None, available_agents: List[str] = None) -> str:
+    def classify(self, message: str, thread_id: Optional[str] = None, available_agents: List[AgentInfo] = None) -> str:
         """
         Classify a message and return the most appropriate agent name.
         

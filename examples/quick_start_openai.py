@@ -2,14 +2,14 @@
 Interactive chat example using OpenAI agent with conversation memory.
 """
 
+import os
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
-import os
-import sys
+
 
 def setup_agent():
     # Set up memory components
@@ -48,6 +48,7 @@ def setup_agent():
 
     return orchestrator, agent
 
+
 def format_conversation_context(messages):
     context = "\nPrevious conversation:\n"
     for msg in messages:
@@ -56,17 +57,18 @@ def format_conversation_context(messages):
         context += f"{sender}: {msg.content}\n"
     return context
 
+
 def main():
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
-    
+
     print("Welcome to Interactive Chat! (Type 'quit' or 'exit' to end)")
     print("-" * 50)
 
     while True:
         # Get user input
         user_input = input("\nYou: ").strip()
-        
+
         # Check for exit command
         if user_input.lower() in ['quit', 'exit']:
             print("\nGoodbye!")
@@ -83,7 +85,7 @@ def main():
 
         # Get conversation context
         previous_messages = agent.get_last_n_messages(thread_id, n=5)
-        
+
         # Add context to the user's message if there are previous messages
         if previous_messages:
             context = format_conversation_context(previous_messages)
@@ -93,7 +95,7 @@ def main():
 
         # Print Assistant prompt
         print("\nAssistant: ", end="", flush=True)
-        
+
         # Define callback for streaming
         def stream_callback(chunk):
             print(chunk, end="", flush=True)
@@ -116,6 +118,7 @@ def main():
             sender="assistant",
             content=response
         )
+
 
 if __name__ == "__main__":
     main()

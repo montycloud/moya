@@ -2,13 +2,13 @@
 Interactive chat example using OpenAI agent with conversation memory.
 """
 
+import os
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.crewai_agent import CrewAIAgent, CrewAIAgentConfig
-import os
 
 
 def setup_agent():

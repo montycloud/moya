@@ -25,7 +25,8 @@ class ReActOrchestrator(BaseOrchestrator):
         agent_registry: AgentRegistry,
         classifier: BaseClassifier,
         default_agent_name: Optional[str] = None,
-        config: Optional[dict] = {}
+        config: Optional[dict] = {},
+        verbose=False
     ):
         """
         :param agent_registry: The AgentRegistry to retrieve agents from.
@@ -36,7 +37,6 @@ class ReActOrchestrator(BaseOrchestrator):
         super().__init__(agent_registry=agent_registry, config=config)
         self.classifier = classifier
         self.default_agent_name = default_agent_name
-        self.max_steps = config.get("max_steps", 5)
 
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
@@ -44,31 +44,26 @@ class ReActOrchestrator(BaseOrchestrator):
                 "OPENAI_API_KEY not found in environment. Please set it before using OpenAIAgent."
             )
         self.client = OpenAI(api_key=api_key)
+        self.verbose = verbose
 
     def orchestrate(self, thread_id: str, user_message: str, stream_callback=None, **kwargs) -> str:
         """
         The main orchestration method following the ReAct framework.
         """
-        # action = self._determine_action(user_message)
-        # observation = self._execute_action(action)
-        # print(action)
-        # print(observation)
-        # print()
+        self.max_steps = self.config.get("max_steps", 5)
 
         observation = user_message
 
         while not self._is_final_answer(observation, user_message) and self.max_steps > 0:
+            self.log(message=f"Step {self.config.get('max_steps', 5) - self.max_steps}")
             self.max_steps -= 1
             thought = self._generate_thought(observation, user_message)
             action = self._determine_action(thought)
             observation = self._execute_action(action)
-            # print(thought)
-            # print(action)
-            # print(observation)
-            # print()
+            self.log(message="new_line")
 
+        self.log(message="new_line\nnew_line")
         return self._generate_final_answer(observation)
-        
 
     def _call_llm(self, system_prompt: str, message: str) -> str:
         """
@@ -87,12 +82,15 @@ class ReActOrchestrator(BaseOrchestrator):
         Determine the next action based on the current thought.
         """
         available_agents = self.agent_registry.list_agents()
-        agent_name = self.classifier.classify(thought, available_agents=available_agents)
+        agent_name = self.classifier.classify(
+            thought, available_agents=available_agents)
         if not agent_name:
             agent_name = self.default_agent_name
         task = self._generate_task(thought, agent_name)
-        action = f"agent: {agent_name}\ntask: {task}"
-        print(f"\n***\n{thought}\n{action}\n***\n", end="\n\n")
+        task = task.replace("task: ", "").replace("Task: ", "").strip()
+        action = f"  agent: {agent_name}\n  task: {task}"
+
+        self.log(message=f"{thought}\n{action}")
         return action
 
     def _generate_task(self, thought: str, agent_name: str) -> str:
@@ -117,8 +115,6 @@ class ReActOrchestrator(BaseOrchestrator):
 
         agent = self.agent_registry.get_agent(agent_name)
         response = agent.handle_message(task_description)
-
-        # print(f"AgentResponse ***{response}***")
 
         return self._generate_observation(response)
 
@@ -154,17 +150,36 @@ class ReActOrchestrator(BaseOrchestrator):
 
         user_message = f"Observation: {observation}, User Query: {user_query}"
         response = self._call_llm(system_prompt, user_message)
-        print(f"FinalAnswer ***{response}***")
+        self.log(message=f"Is final answer: {'yes' if response == 'final_answer' else 'no'}")
         return response == "final_answer"
 
     def _generate_observation(self, response: str) -> str:
         """
         Generate the observation based on the agent's response.
         """
-        return f"Observation: {response}"
+        observation = f"Observation: {response}"
+        temp_obs = observation.replace("\n", " ")
+        if len(observation) > 100:
+            self.log(message=temp_obs[:50] + "..." + temp_obs[-50:])
+        else:
+            self.log(message=temp_obs)
+        return observation
 
     def _generate_final_answer(self, response: str) -> str:
         """
         Generate the final answer based on the agent's response.
         """
         return response.replace("Observation: ", "")
+
+    def log(self, message: str):
+        """
+        Log the iteration message.
+        """
+        if self.verbose:
+            messages = message.split('\n')
+            for message in messages:
+                cleaned_message = message.replace("\n", "").strip()
+                if cleaned_message == 'new_line':
+                    print("\n")
+                elif cleaned_message:
+                    print("    [Orchestrator]: ", message)
