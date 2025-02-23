@@ -5,6 +5,8 @@ Implements the BaseAgentRepository using in-memory Python data structures.
 """
 
 from typing import Dict, List, Optional
+
+from moya.agents.agent_info import AgentInfo
 from moya.agents.base_agent import Agent
 from moya.registry.base_agent_repository import BaseAgentRepository
 
@@ -37,8 +39,12 @@ class InMemoryAgentRepository(BaseAgentRepository):
         """
         return self._agents.get(agent_name, None)
 
-    def list_agent_names(self) -> List[str]:
+    def list_agents(self) -> List[AgentInfo]:
         """
-        Return all agent names.
+        Return all agents' information.
         """
-        return list(self._agents.keys())
+        agent_infos = []
+        for agent in self._agents.values():
+            agent_info = AgentInfo(agent.agent_name, agent.description, agent.agent_type)
+            agent_infos.append(agent_info)
+        return agent_infos

@@ -15,13 +15,11 @@ Agents can:
   through a MemoryTool if registered in the tool registry.
 """
 
-# TODO: Implement proper tool handling support for agents. 
-#       Add support for agent specific tools spec
-# TODO: Port tool-related methods from SimpleOrchestrator.
 
 import abc
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+
 
 @dataclass
 class AgentConfig:
@@ -34,15 +32,16 @@ class AgentConfig:
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
     stop_sequences: list = None
-    
+
     def __post_init__(self):
         if self.stop_sequences is None:
             self.stop_sequences = []
 
+
 class Agent(abc.ABC):
     """
     Abstract base class for all Moya agents.
-    
+
     Agents are responsible for:
     - A textual description of their capabilities (description property),
     - A type descriptor (agent_type) that helps the registry handle them,

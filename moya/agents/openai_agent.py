@@ -5,7 +5,6 @@ An Agent that uses OpenAI's ChatCompletion or Completion API
 to generate responses, pulling API key from the environment.
 """
 
-# Todo: Implement more configuration freedom for the agent.
 
 import os
 from openai import OpenAI

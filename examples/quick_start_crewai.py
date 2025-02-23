@@ -7,7 +7,7 @@ from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
-from moya.agents.crewai_agent import CrewAIAgent
+from moya.agents.crewai_agent import CrewAIAgent, CrewAIAgentConfig
 import os
 
 
@@ -20,12 +20,12 @@ def setup_agent():
 
     # Create OpenAI agent with memory capabilities
     agent = CrewAIAgent(
-        agent_name="chat_agent",
+        agent_name="eli5_agent",
         description="An intelligent agent that can explain things to a five year old.",
-        config={
-            "api_key": os.getenv("OPENAI_API_KEY"),
-            "model": "gpt-4o"
-        },
+        agent_config=CrewAIAgentConfig(system_prompt="Can you explain this to me like I'm five?",
+                                       api_key=os.environ.get("OPENAI_API_KEY"),
+                                       model_name="gpt-4o"
+                                       ),
         tool_registry=tool_registry
     )
     agent.setup()
@@ -35,7 +35,7 @@ def setup_agent():
     agent_registry.register_agent(agent)
     orchestrator = SimpleOrchestrator(
         agent_registry=agent_registry,
-        default_agent_name="chat_agent"
+        default_agent_name="eli5_agent"
     )
 
     return orchestrator, agent

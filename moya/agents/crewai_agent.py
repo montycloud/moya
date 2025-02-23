@@ -1,38 +1,40 @@
 """
-BedrockAgent for Moya.
+CrewAIAgent for Moya.
 
-An Agent that uses AWS Bedrock API to generate responses,
-pulling AWS credentials from environment or AWS configuration.
+An Agent that uses a Crew to generate responses using CrewAI.
 """
-
-# Todo: Implement more configuration freedom for the agent.
-
-import json
 import os
+from dataclasses import dataclass
+
 from crewai import Agent as CrewAgent, LLM as CrewLLM, Task as CrewTask, Crew
 from typing import Any, Dict, Optional
-from moya.agents.base_agent import Agent
+from moya.agents.base_agent import Agent, AgentConfig
 
+os.environ["OTEL_SDK_DISABLED"] = "true"
+
+
+@dataclass
+class CrewAIAgentConfig(AgentConfig):
+    api_key: str = os.getenv("OPENAI_API_KEY"),
+    model_name: str = "gpt-4o"
 
 class CrewAIAgent(Agent):
     """
-    A simple AWS Bedrock-based agent that uses the Bedrock API.
+    A simple CrewAI-based agent.
     """
 
     def __init__(
-        self,
-        agent_name: str,
-        description: str,
-        model_id: str = "anthropic.claude-v2",
-        config: Optional[Dict[str, Any]] = None,
-        tool_registry: Optional[Any] = None,
-        system_prompt: str = "You are a helpful AI assistant."
+            self,
+            agent_name: str,
+            description: str,
+            config: Optional[Dict[str, Any]] = None,
+            tool_registry: Optional[Any] = None,
+            agent_config: Optional[CrewAIAgentConfig] = None
     ):
         """
         :param agent_name: Unique name or identifier for the agent.
         :param description: A brief explanation of the agent's capabilities.
-        :param model_id: The Bedrock model ID (e.g., "anthropic.claude-v2").
-        :param config: Optional config dict (can include AWS region).
+        :param config: Optional agent configuration (unused by default).
         :param tool_registry: Optional ToolRegistry to enable tool calling.
         :param system_prompt: Default system prompt for context.
         """
@@ -43,8 +45,7 @@ class CrewAIAgent(Agent):
             config=config,
             tool_registry=tool_registry
         )
-        self.model_id = model_id
-        self.system_prompt = system_prompt
+        self.agent_config = agent_config or CrewAIAgentConfig()
         self.client = None
 
     def setup(self) -> None:
@@ -56,12 +57,12 @@ class CrewAIAgent(Agent):
         try:
             self.client = CrewAgent(
                 role="assistant",
-                goal=self.system_prompt,
+                goal=self.agent_config.system_prompt,
                 backstory=self.description,
                 verbose=False,
                 llm=CrewLLM(
-                    model=self.config.get("model", "gpt-4o"),
-                    api_key=self.config.get("api_key", None),
+                    model=self.agent_config.model_name,
+                    api_key=self.agent_config.api_key,
                 ))
         except Exception as e:
             raise EnvironmentError(
@@ -74,10 +75,10 @@ class CrewAIAgent(Agent):
         """
         try:
             task = CrewTask(
-                        description=message,
-                        expected_output="",
-                        agent=self.client,
-                    )
+                description=message,
+                expected_output="",
+                agent=self.client,
+            )
             crew = Crew(agents=[self.client], tasks=[task])
             response = crew.kickoff().raw
             return response
@@ -90,45 +91,16 @@ class CrewAIAgent(Agent):
         Calls AWS Bedrock to handle the user's message with streaming support.
         """
         try:
-            # if "anthropic" in self.model_id:
-            #     prompt=f"\n\nHuman: {message}\n\nAssistant:"
-            #     body={
-            #         "prompt": self.system_prompt + prompt,
-            #         "max_tokens_to_sample": 2000,
-            #         "temperature": 0.7
-            #     }
-            # else:
-            #     body={
-            #         "inputText": message,
-            #         "textGenerationConfig": {
-            #             "maxTokenCount": 2000,
-            #             "temperature": 0.7
-            #         }
-            #     }
-
-            # response=self.client.invoke_model_with_response_stream(
-            #     modelId=self.model_id,
-            #     body=json.dumps(body)
-            # )
-
-            # for event in response['body']:
-            #     chunk=json.loads(event['chunk']['bytes'])
-            #     if 'completion' in chunk:
-            #         yield chunk['completion']
-            #     elif 'outputText' in chunk:
-            #         yield chunk['outputText']
-
-            task = CrewTask( #wraps prompt into a task object
-                        description=message,
-                        expected_output="",
-                        agent=self.client,
-                    )
+            task = CrewTask(
+                description=message,
+                expected_output="",
+                agent=self.client,
+            )
             crew = Crew(agents=[self.client], tasks=[task])
             response = crew.kickoff().raw
-            # print(response)
             yield response
 
         except Exception as e:
-            error_message=f"[BedrockAgent error: {str(e)}]"
+            error_message = f"[CrewAIAgent error: {str(e)}]"
             print(error_message)
             yield error_message
