@@ -41,5 +41,6 @@ packages = [
     "moya.memory",
     "moya.orchestrators",
     "moya.registry",
-    "moya.tools"
+    "moya.tools",
+    "moya.utils"
     ]
