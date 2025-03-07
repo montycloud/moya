@@ -39,7 +39,7 @@ class RemoteAgent(Agent):
         :param description: Description of the agent's capabilities
         :param config: Optional configuration dictionary
         :param tool_registry: Optional ToolRegistry for tool support
-        :param agent_config: RemoteAgentConfig instance
+        :param agent_config: Optional configuration for the RemoteAgent
         """
         super().__init__(
             agent_name=agent_name,

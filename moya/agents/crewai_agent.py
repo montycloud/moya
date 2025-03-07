@@ -18,6 +18,7 @@ class CrewAIAgentConfig(AgentConfig):
     api_key: str = os.getenv("OPENAI_API_KEY"),
     model_name: str = "gpt-4o"
 
+
 class CrewAIAgent(Agent):
     """
     A simple CrewAI-based agent.
@@ -37,6 +38,7 @@ class CrewAIAgent(Agent):
         :param config: Optional agent configuration (unused by default).
         :param tool_registry: Optional ToolRegistry to enable tool calling.
         :param system_prompt: Default system prompt for context.
+        :param agent_config: Optional configuration for the CrewAIAgent.
         """
         super().__init__(
             agent_name=agent_name,
@@ -50,9 +52,7 @@ class CrewAIAgent(Agent):
 
     def setup(self) -> None:
         """
-        Initialize the Bedrock client using boto3.
-        AWS credentials should be configured via environment variables
-        or AWS configuration files.
+        Initialize the CrewAI agent with the provided configuration.
         """
         try:
             self.client = CrewAgent(
@@ -71,7 +71,7 @@ class CrewAIAgent(Agent):
 
     def handle_message(self, message: str, **kwargs) -> str:
         """
-        Calls AWS Bedrock to handle the user's message.
+        Calls the CrewAI agent to handle the user's message.
         """
         try:
             task = CrewTask(
@@ -88,7 +88,8 @@ class CrewAIAgent(Agent):
 
     def handle_message_stream(self, message: str, **kwargs):
         """
-        Calls AWS Bedrock to handle the user's message with streaming support.
+        Calls the CrewAI agent to handle the user's message.
+        CrewAI does not support streaming responses, so this method is the same as handle_message.
         """
         try:
             task = CrewTask(

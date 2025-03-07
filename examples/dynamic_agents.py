@@ -70,9 +70,7 @@ def create_new_agent(tool_registry, agents_info: Dict[str, Dict[str, Any]]) -> O
     system_prompt = input("Enter system prompt: ").strip()
 
     agent_config = OpenAIAgentConfig(
-        system_prompt=system_prompt,
-        model_name="gpt-4o",
-        temperature=0.7
+        system_prompt=system_prompt
     )
 
     agent = OpenAIAgent(
@@ -108,9 +106,7 @@ def main():
 
     # Create and register initial English agent
     english_config = OpenAIAgentConfig(
-        system_prompt="You are a helpful assistant that responds in English.",
-        model_name="gpt-4o",
-        temperature=0.7
+        system_prompt="You are a helpful assistant that responds in English."
     )
 
     english_agent = OpenAIAgent(

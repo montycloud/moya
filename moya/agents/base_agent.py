@@ -60,6 +60,7 @@ class Agent(abc.ABC):
         agent_type: str,
         description: str,
         config: Optional[Dict[str, Any]] = None,
+        agent_config: Optional[AgentConfig] = None,
         tool_registry: Optional[Any] = None
     ):
         """
@@ -75,12 +76,14 @@ class Agent(abc.ABC):
                            (e.g., "BaseAgent", "RemoteAgent", "OpenAIAgent").
         :param description: A brief explanation of the agent's capabilities and role.
         :param config: Optional configuration dict (e.g., API keys, parameters).
+        :param agent_config: Optional AgentConfig object with model parameters.
         :param tool_registry: A reference to a centralized ToolRegistry (if any).
         """
         self.agent_name = agent_name
         self.agent_type = agent_type
         self.description = description
         self.config = config or {}
+        self.agent_config = agent_config or AgentConfig()
         self.tool_registry = tool_registry
 
     @abc.abstractmethod
