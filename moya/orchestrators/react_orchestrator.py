@@ -8,10 +8,11 @@ An implementation of an orchestrator that follows the ReAct framework:
 """
 
 from typing import Optional
+
+from moya.agents.base_agent import Agent
 from moya.orchestrators.base_orchestrator import BaseOrchestrator
 from moya.registry.agent_registry import AgentRegistry
 from moya.classifiers.base_classifier import BaseClassifier
-from openai import OpenAI
 import os
 
 
@@ -24,6 +25,7 @@ class ReActOrchestrator(BaseOrchestrator):
         self,
         agent_registry: AgentRegistry,
         classifier: BaseClassifier,
+        llm_agent: Agent,
         default_agent_name: Optional[str] = None,
         config: Optional[dict] = {},
         verbose=False
@@ -31,6 +33,7 @@ class ReActOrchestrator(BaseOrchestrator):
         """
         :param agent_registry: The AgentRegistry to retrieve agents from.
         :param classifier: The classifier to use for agent selection.
+        :param llm_agent: The LLM agent to generate responses.
         :param default_agent_name: The default agent to fall back on if no specialized match is found.
         :param config: Optional dictionary for orchestrator configuration.
         """
@@ -43,8 +46,8 @@ class ReActOrchestrator(BaseOrchestrator):
             raise EnvironmentError(
                 "OPENAI_API_KEY not found in environment. Please set it before using OpenAIAgent."
             )
-        self.client = OpenAI(api_key=api_key)
         self.verbose = verbose
+        self.llm_agent = llm_agent
 
     def orchestrate(self, thread_id: str, user_message: str, stream_callback=None, **kwargs) -> str:
         """
@@ -62,20 +65,17 @@ class ReActOrchestrator(BaseOrchestrator):
             observation = self._execute_action(action)
             self.log(message="new_line")
 
-        self.log(message="new_line\nnew_line")
+        self.log(message="new_line\n=== Final Answer ===")
         return self._generate_final_answer(observation)
 
     def _call_llm(self, system_prompt: str, message: str) -> str:
         """
         Call the LLM to generate a response.
         """
-        response = self.client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message},
-            ])
-        return response.choices[0].message.content
+        self.llm_agent.system_prompt = system_prompt
+        response = self.llm_agent.handle_message(message)
+        # print(response)
+        return response
 
     def _determine_action(self, thought: str) -> str:
         """
@@ -99,8 +99,7 @@ class ReActOrchestrator(BaseOrchestrator):
         """
         system_prompt = """Use the agent details along with the observation to generate a descriptive task. NOTE THAT YOU SHOULD ONLY TELL THE AGENT WHAT TO DO, NOT HOW TO DO IT."""
 
-        agent_description = self.agent_registry.get_agent(
-            agent_name).description
+        agent_description = self.agent_registry.get_agent(agent_name).description
         user_message = f"Thought: {thought}. Agent Description: {agent_description}"
         return self._call_llm(system_prompt, user_message)
 

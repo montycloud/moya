@@ -19,7 +19,7 @@ class OpenAIAgentConfig(AgentConfig):
     api_key: Optional[str] = None
     api_base: Optional[str] = None
     organization: Optional[str] = None
-    model_name: str = "gpt-4"
+    model_name: str = "gpt-4o"
 
 
 class OpenAIAgent(Agent):

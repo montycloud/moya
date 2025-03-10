@@ -48,6 +48,7 @@ class CrewAIAgent(Agent):
             tool_registry=tool_registry
         )
         self.agent_config = agent_config or CrewAIAgentConfig()
+        self.system_prompt = self.agent_config.system_prompt
         self.client = None
 
     def setup(self) -> None:
@@ -57,7 +58,7 @@ class CrewAIAgent(Agent):
         try:
             self.client = CrewAgent(
                 role="assistant",
-                goal=self.agent_config.system_prompt,
+                goal=self.system_prompt,
                 backstory=self.description,
                 verbose=False,
                 llm=CrewLLM(

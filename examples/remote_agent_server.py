@@ -32,7 +32,7 @@ def setup_agent():
     # Create and setup agent
     agent_config = OpenAIAgentConfig(
         system_prompt="You are a remote agent that specializes in telling jokes and being entertaining.",
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.8,
         max_tokens=1000
     )

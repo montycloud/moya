@@ -84,6 +84,7 @@ class Agent(abc.ABC):
         self.description = description
         self.config = config or {}
         self.agent_config = agent_config or AgentConfig()
+        self.system_prompt = self.agent_config.system_prompt
         self.tool_registry = tool_registry
 
     @abc.abstractmethod

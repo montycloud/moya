@@ -1,4 +1,3 @@
-import os
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 # from moya.agents.remote_agent import RemoteAgent
 from moya.classifiers.llm_classifier import LLMClassifier
@@ -99,6 +98,18 @@ def create_classifier_agent() -> OpenAIAgent:
     return agent
 
 
+def create_llm_agent():
+    llm_agent = OpenAIAgent(
+        agent_name="LLM",
+        description="An simple LLM processor",
+        agent_config=OpenAIAgentConfig(
+            system_prompt="You are a helpful LLM agent."
+        )
+    )
+    llm_agent.setup()
+    return llm_agent
+
+
 def setup_orchestrator():
     """Set up the multi-agent orchestrator with all components."""
     # Set up shared components
@@ -111,6 +122,7 @@ def setup_orchestrator():
     language_agent = create_language_agent(tool_registry)
 
     classifier_agent = create_classifier_agent()
+    llm_agent = create_llm_agent()
 
     # Set up agent registry
     registry = AgentRegistry()
@@ -126,10 +138,10 @@ def setup_orchestrator():
     orchestrator = ReActOrchestrator(
         agent_registry=registry,
         classifier=classifier,
+        llm_agent=llm_agent,
         default_agent_name=None,
         verbose=True
     )
-
     return orchestrator
 
 
