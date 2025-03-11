@@ -9,19 +9,20 @@ to generate responses, pulling API key from the environment.
 import os
 from openai import OpenAI
 from dataclasses import dataclass
+from dataclasses import dataclass
 
 from typing import Any, Dict, Optional
-from moya.agents.base_agent import Agent, AgentConfig
-
+from moya.agents.base_agent import Agent
+from moya.agents.base_agent import AgentConfig
 
 @dataclass
 class OpenAIAgentConfig(AgentConfig):
-    api_key: Optional[str] = None
-    api_base: Optional[str] = None
-    organization: Optional[str] = None
+    """
+    Configuration data for an OpenAIAgent.
+    """
     model_name: str = "gpt-4o"
-
-
+    api_key: str = None
+    streaming: bool = False
 class OpenAIAgent(Agent):
     """
     A simple OpenAI-based agent that uses the ChatCompletion API.
@@ -29,11 +30,7 @@ class OpenAIAgent(Agent):
 
     def __init__(
         self,
-        agent_name: str,
-        description: str,
-        config: Optional[Dict[str, Any]] = None,
-        tool_registry: Optional[Any] = None,
-        agent_config: Optional[OpenAIAgentConfig] = None
+        config: OpenAIAgentConfig   
     ):
         """
         :param agent_name: Unique name or identifier for the agent.
@@ -43,29 +40,13 @@ class OpenAIAgent(Agent):
         :param tool_registry: Optional ToolRegistry to enable tool calling.
         :param agent_config: Optional configuration for the agent.
         """
-        super().__init__(
-            agent_name=agent_name,
-            agent_type="OpenAIAgent",
-            description=description,
-            config=config,
-            tool_registry=tool_registry
-        )
-        self.agent_config = agent_config or OpenAIAgentConfig()
-        self.system_prompt = self.agent_config.system_prompt
-        self.model_name = self.agent_config.model_name
-
-    def setup(self) -> None:
-        """
-        Set the OpenAI API key from the environment.
-        You could also handle other setup tasks here
-        (e.g., model selection logic).
-        """
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise EnvironmentError(
-                "OPENAI_API_KEY not found in environment. Please set it before using OpenAIAgent."
-            )
-        self.client = OpenAI(api_key=api_key)
+        super().__init__(config=config)
+        self.model_name = config.model_name
+        if not config.api_key:
+            raise ValueError("OpenAI API key is required for OpenAIAgent.")
+        self.client = OpenAI(api_key=config.api_key)
+        self.streaming = config.streaming
+        self.system_prompt = config.system_prompt
 
     def handle_message(self, message: str, **kwargs) -> str:
         """
