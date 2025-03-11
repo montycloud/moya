@@ -5,7 +5,7 @@ A centralized place where tools (e.g., MemoryTool) can be registered
 and discovered by agents.
 """
 import json
-from typing import Dict, Optional, List
+from typing import Any, Dict, Optional, List
 from moya.tools.base_tool import BaseTool
 from moya.utils.constants import LLMProviders
 
