@@ -43,6 +43,29 @@ class BaseTool(abc.ABC):
             self._validate_parameters(parameters)
         self._parameters = parameters or {}
 
+    @property
+    def name(self) -> str:
+        """
+        Returns the name of the tool.
+        """
+        return self._name
+    
+    @property
+    def description(self) -> str:
+        """
+        Returns the description of the tool.
+        """
+        return self._description   
+    
+    @property
+    def parameters(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Returns the parameters of the tool.
+        """
+        return self._parameters
+    
+
+
     def _validate_parameters(self, parameters: Dict[str, Dict[str, Any]]) -> None:
         """
         Validates the parameters dictionary format.
@@ -64,11 +87,36 @@ class BaseTool(abc.ABC):
             if param_info["type"] not in valid_types:
                 raise ValueError(f"Parameter {param_name} has invalid type. Must be one of: {', '.join(valid_types)}")
 
-        def get_bedrock_definition(self) -> Dict[str, Any]:
-            """
-            Returns the tool definition in a format compatible with Bedrock.
-            """
-            return {
+    def get_bedrock_definition(self) -> Dict[str, Any]:
+        """
+        Returns the tool definition in a format compatible with Bedrock.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    name: {
+                        "type": info["type"],
+                        "description": info["description"]
+                    } for name, info in self.parameters.items()
+                },
+                "required": [
+                    name for name, info in self.parameters.items() 
+                    if info.get("required", False)
+                ]
+            }
+        }
+    
+    def get_openai_definition(self) -> Dict[str, Any]:
+        """
+        Returns the tool definition in a format compatible with OpenAI.
+        """
+        return {
+            "name": self.name,
+            "description": self.description,
+            "function": {
                 "name": self.name,
                 "description": self.description,
                 "parameters": {
@@ -85,36 +133,11 @@ class BaseTool(abc.ABC):
                     ]
                 }
             }
-        
-        def get_openai_definition(self) -> Dict[str, Any]:
-            """
-            Returns the tool definition in a format compatible with OpenAI.
-            """
-            return {
-                "name": self.name,
-                "description": self.description,
-                "function": {
-                    "name": self.name,
-                    "description": self.description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            name: {
-                                "type": info["type"],
-                                "description": info["description"]
-                            } for name, info in self.parameters.items()
-                        },
-                        "required": [
-                            name for name, info in self.parameters.items() 
-                            if info.get("required", False)
-                        ]
-                    }
-                }
-            }
-        
-        def get_ollama_definition(self) -> Dict[str, Any]:
-            """
-            Returns the tool definition in a format compatible with Ollama.
-            """
-            # Ollama follows OpenAI format
-            return self.get_openai_definition()
+        }
+    
+    def get_ollama_definition(self) -> Dict[str, Any]:
+        """
+        Returns the tool definition in a format compatible with Ollama.
+        """
+        # Ollama follows OpenAI format
+        return self.get_openai_definition()
