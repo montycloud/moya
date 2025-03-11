@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explanations - Moya Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="quickstart.html">Quickstart</a></li>
+                <li><a href="guides.html">Guides</a></li>
+                <li><a href="explanations.html">Explanations</a></li>
+                <li><a href="tutorials.html">Tutorials</a></li>
+                <li><a href="reference.html">Reference</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Explanations</h3>
+            <ul>
+                <li><a href="#agent-architecture">Agent Architecture</a></li>
+                <li><a href="#how-agents-work">How Agents Work</a></li>
+                <li><a href="#agent-types">Agent Types</a></li>
+                <li><a href="#memory-management">Memory Management</a></li>
+                <li><a href="#multi-agent-systems">Multi-Agent Systems</a></li>
+                <li><a href="#orchestrators">Orchestrators</a></li>
+                <li><a href="#tool-registry">Tool Registry and Tool Calling</a></li>
+            </ul>
+        </aside>
+        
+        <main>
+            <h2>Explanations</h2>
+            
+            <h3 id="agent-architecture">Agent Architecture</h3>
+            <p>Moya's architecture is designed to be modular and flexible. Each agent can be configured with different models and tools, allowing for a wide range of applications.</p>
+            <ul>
+                <li><strong>Agents</strong>: The core components that handle user interactions. Agents can be specialized for different tasks, such as responding to queries or performing actions.</li>
+                <li><strong>Tools</strong>: Utilities that agents can call to perform specific tasks (e.g., memory management, web searches). Tools enhance the capabilities of agents by providing additional functionalities.</li>
+                <li><strong>Classifiers</strong>: Components that determine which agent should handle a given message. Classifiers analyze user input and route it to the appropriate agent based on predefined criteria.</li>
+            </ul>
+            
+            <h3 id="how-agents-work">How Agents Work</h3>
+            <p>Agents in Moya operate by receiving messages, processing them, and generating responses. The flow typically involves:</p>
+            <ol>
+                <li><strong>Receiving a Message</strong>: The agent listens for user input.</li>
+                <li><strong>Processing the Message</strong>: The agent analyzes the input and determines the appropriate response.</li>
+                <li><strong>Generating a Response</strong>: The agent uses its configured model to create a reply.</li>
+            </ol>
+            
+            <h3>Example of an Agent</h3>
+            <pre><code class="python">
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+
+# Set up the agent configuration
+agent_config = OpenAIAgentConfig(
+    system_prompt="You are a helpful AI assistant.",
+    model_name="gpt-4o",
+    temperature=0.7,
+    max_tokens=2000
+)
+
+# Create the agent
+agent = OpenAIAgent(
+    agent_name="my_agent",
+    description="A simple AI assistant",
+    agent_config=agent_config
+)
+
+# Set up the agent
+agent.setup()
+
+# Handle a message
+response = agent.handle_message("Hello, how can I help you?")
+print(response)
+            </code></pre>
+            
+            <h3 id="agent-types">Agent Types</h3>
+            <p>Moya supports several types of agents, each with its own capabilities and use cases:</p>
+            <ul>
+                <li><strong>OpenAI Agents</strong>: Use OpenAI's models (like GPT-4) for generating responses.</li>
+                <li><strong>Bedrock Agents</strong>: Leverage AWS Bedrock for accessing various foundation models.</li>
+                <li><strong>Ollama Agents</strong>: Connect to locally hosted models through Ollama for privacy-focused applications.</li>
+                <li><strong>Remote Agents</strong>: Communicate with external API endpoints for specialized tasks.</li>
+                <li><strong>CrewAI Agents</strong>: Integrate with CrewAI for collaborative agent workflows.</li>
+            </ul>
+            
+            <h3 id="memory-management">Memory Management</h3>
+            <p>Moya provides built-in memory management through the MemoryTool, allowing agents to:</p>
+            <ul>
+                <li>Store conversation history in threads</li>
+                <li>Retrieve past messages for context</li>
+                <li>Generate summaries of conversations</li>
+            </ul>
+            <p>This memory system enables agents to maintain context across multiple interactions, creating more coherent and contextually relevant responses.</p>
+            
+            <h3 id="multi-agent-systems">Multi-Agent Systems</h3>
+            <p>Moya supports multi-agent systems where multiple specialized agents work together to handle different types of queries. The key components include:</p>
+            <ul>
+                <li><strong>Agent Registry</strong>: Maintains a collection of available agents.</li>
+                <li><strong>Classifiers</strong>: Route messages to the appropriate agent based on content analysis.</li>
+                <li><strong>Orchestrators</strong>: Coordinate the flow of messages between users and agents.</li>
+            </ul>
+            
+            <h3 id="orchestrators">Orchestrators</h3>
+            <p>Orchestrators in Moya manage the flow of messages between users and agents. They handle:</p>
+            <ul>
+                <li>Message routing to appropriate agents</li>
+                <li>Response collection and formatting</li>
+                <li>Stream handling for real-time responses</li>
+            </ul>
+            <p>Moya provides different types of orchestrators:</p>
+            <ul>
+                <li><strong>SimpleOrchestrator</strong>: Routes all messages to a single default agent.</li>
+                <li><strong>MultiAgentOrchestrator</strong>: Uses a classifier to route messages to different specialized agents.</li>
+                <li><strong>ReActOrchestrator</strong>: Implements the ReAct (Reasoning and Acting) pattern for more complex workflows.</li>
+            </ul>
+            
+            <h3 id="tool-registry">Tool Registry and Tool Calling</h3>
+            <p>The Tool Registry in Moya allows agents to discover and call external tools. This enables agents to:</p>
+            <ul>
+                <li>Access external APIs and services</li>
+                <li>Perform specialized tasks beyond text generation</li>
+                <li>Extend their capabilities without modifying the agent code</li>
+            </ul>
+            <p>Tools are registered with the Tool Registry and can be called by agents using the <code>call_tool</code> method:</p>
+            <pre><code class="python">
+# Register a tool
+tool_registry.register_tool(memory_tool)
+
+# Call a tool from an agent
+agent.call_tool(
+    tool_name="MemoryTool",
+    method_name="store_message",
+    thread_id="thread_1",
+    sender="user",
+    content="Hello, how are you?"
+)
+            </code></pre>
+        </main>
+    </div>
+    <footer>
+        <p>&copy; 2025 Moya Documentation</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guides - Moya Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</head>
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="quickstart.html">Quickstart</a></li>
+                <li><a href="guides.html">Guides</a></li>
+                <li><a href="explanations.html">Explanations</a></li>
+                <li><a href="tutorials.html">Tutorials</a></li>
+                <li><a href="reference.html">Reference</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Guides</h3>
+            <ul>
+                <li><a href="#creating-agents">Creating Agents</a></li>
+                <li><a href="#managing-memory">Managing Memory</a></li>
+                <li><a href="#building-multi-agent">Building Multi-Agent Systems</a></li>
+                <li><a href="#streaming-responses">Streaming Responses</a></li>
+            </ul>
+        </aside>
+        
+        <main>
+            <h2>Guides</h2>
+            
+            <h3 id="creating-agents">Creating Agents</h3>
+            <p>Learn how to create different types of agents using Moya. This section covers:</p>
+            <ul>
+                <li><strong>OpenAI Agents</strong>: Integrate with OpenAI's API.</li>
+                <li><strong>Bedrock Agents</strong>: Use AWS Bedrock for generating responses.</li>
+                <li><strong>Remote Agents</strong>: Communicate with external APIs.</li>
+                <li><strong>Ollama Agents</strong>: Connect to locally hosted models.</li>
+                <li><strong>CrewAI Agents</strong>: Integrate with CrewAI for collaborative workflows.</li>
+            </ul>
+            
+            <h4>Creating an OpenAI Agent</h4>
+            <pre><code class="python">
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+
+# Set up the agent configuration
+agent_config = OpenAIAgentConfig(
+    system_prompt="You are a helpful AI assistant.",
+    model_name="gpt-4o",
+    temperature=0.7,
+    max_tokens=2000,
+    api_key=os.getenv("OPENAI_API_KEY")  # Optional, defaults to environment variable
+)
+
+# Create the agent
+agent = OpenAIAgent(
+    agent_name="openai_agent",
+    description="An agent that uses OpenAI's API",
+    agent_config=agent_config
+)
+
+# Set up the agent
+agent.setup()
+            </code></pre>
+            
+            <h4>Creating a Bedrock Agent</h4>
+            <pre><code class="python">
+from moya.agents.bedrock_agent import BedrockAgent, BedrockAgentConfig
+
+# Set up the agent configuration
+agent_config = BedrockAgentConfig(
+    system_prompt="You are a helpful AI assistant.",
+    model_id="anthropic.claude-v2",  # Specify the Bedrock model ID
+    region="us-east-1",              # AWS region
+    temperature=0.7,
+    max_tokens_to_sample=2000
+)
+
+# Create the agent
+agent = BedrockAgent(
+    agent_name="bedrock_agent",
+    description="An agent that uses AWS Bedrock",
+    agent_config=agent_config
+)
+
+# Set up the agent
+agent.setup()
+            </code></pre>
+            
+            <h4>Creating an Ollama Agent</h4>
+            <pre><code class="python">
+from moya.agents.ollama_agent import OllamaAgent, OllamaAgentConfig
+
+# Set up the agent configuration
+agent_config = OllamaAgentConfig(
+    system_prompt="You are a helpful AI assistant.",
+    model_name="llama2",             # Specify the Ollama model
+    base_url="http://localhost:11434", # Ollama API endpoint
+    temperature=0.7,
+    context_window=4096
+)
+
+# Create the agent
+agent = OllamaAgent(
+    agent_name="ollama_agent",
+    description="An agent that uses locally hosted models via Ollama",
+    agent_config=agent_config
+)
+
+# Set up the agent
+agent.setup()
+            </code></pre>
+            
+            <h3 id="managing-memory">Managing Memory</h3>
+            <p>Moya provides tools for managing conversation memory. This guide explains how to:</p>
+            <ul>
+                <li>Store and retrieve messages.</li>
+                <li>Summarize conversations.</li>
+                <li>Use memory tools effectively.</li>
+            </ul>
+            
+            <h4>Example of Using Memory Tool</h4>
+            <pre><code class="python">
+from moya.tools.memory_tool import MemoryTool
+from moya.memory.in_memory_repository import InMemoryRepository
+from moya.tools.tool_registry import ToolRegistry
+
+# Set up memory components
+memory_repo = InMemoryRepository()
+memory_tool = MemoryTool(memory_repository=memory_repo)
+
+# Create a tool registry and register the memory tool
+tool_registry = ToolRegistry()
+tool_registry.register_tool(memory_tool)
+
+# Store a message
+memory_tool.store_message(thread_id="thread_1", sender="user", content="Hello, how are you?")
+
+# Retrieve messages
+messages = memory_tool.get_last_n_messages(thread_id="thread_1", n=5)
+print(messages)
+
+# Get a summary of the conversation
+summary = memory_tool.get_thread_summary(thread_id="thread_1")
+print(summary)
+            </code></pre>
+            
+            <h3 id="building-multi-agent">Building Multi-Agent Systems</h3>
+            <p>Multi-agent systems allow you to create specialized agents for different tasks and route messages to the appropriate agent. This guide covers:</p>
+            <ul>
+                <li>Creating multiple specialized agents</li>
+                <li>Setting up a classifier for message routing</li>
+                <li>Using the MultiAgentOrchestrator</li>
+            </ul>
+            
+            <h4>Example of a Multi-Agent System</h4>
+            <pre><code class="python">
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.classifiers.llm_classifier import LLMClassifier
+from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
+from moya.registry.agent_registry import AgentRegistry
+
+# Create specialized agents
+english_agent = OpenAIAgent(
+    agent_name="english_agent",
+    description="English language specialist",
+    agent_config=OpenAIAgentConfig(
+        system_prompt="You are a helpful assistant that always responds in English.",
+        model_name="gpt-4o"
+    )
+)
+english_agent.setup()
+
+spanish_agent = OpenAIAgent(
+    agent_name="spanish_agent",
+    description="Spanish language specialist",
+    agent_config=OpenAIAgentConfig(
+        system_prompt="Eres un asistente que siempre responde en español.",
+        model_name="gpt-4o"
+    )
+)
+spanish_agent.setup()
+
+# Create a classifier agent
+classifier_agent = OpenAIAgent(
+    agent_name="classifier",
+    description="Message router",
+    agent_config=OpenAIAgentConfig(
+        system_prompt="You are a classifier that routes messages to appropriate agents.",
+        model_name="gpt-4o"
+    )
+)
+classifier_agent.setup()
+
+# Create a classifier using the classifier agent
+classifier = LLMClassifier(
+    llm_agent=classifier_agent,
+    default_agent="english_agent"
+)
+
+# Register agents with the agent registry
+agent_registry = AgentRegistry()
+agent_registry.register_agent(english_agent)
+agent_registry.register_agent(spanish_agent)
+
+# Create the multi-agent orchestrator
+orchestrator = MultiAgentOrchestrator(
+    agent_registry=agent_registry,
+    classifier=classifier
+)
+
+# Use the orchestrator to handle messages
+response = orchestrator.orchestrate(
+    thread_id="thread_1",
+    user_message="¿Cómo estás hoy?"
+)
+print(response)  # Should be routed to the Spanish agent
+            </code></pre>
+            
+            <h3 id="streaming-responses">Streaming Responses</h3>
+            <p>Moya supports streaming responses for a more interactive user experience. This guide explains how to:</p>
+            <ul>
+                <li>Set up streaming with different agent types</li>
+                <li>Handle streaming callbacks</li>
+                <li>Integrate streaming with orchestrators</li>
+            </ul>
+            
+            <h4>Example of Streaming Responses</h4>
+            <pre><code class="python">
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
+from moya.registry.agent_registry import AgentRegistry
+
+# Create an agent
+agent = OpenAIAgent(
+    agent_name="streaming_agent",
+    description="An agent with streaming capabilities",
+    agent_config=OpenAIAgentConfig(
+        system_prompt="You are a helpful assistant.",
+        model_name="gpt-4o"
+    )
+)
+agent.setup()
+
+# Register the agent
+agent_registry = AgentRegistry()
+agent_registry.register_agent(agent)
+
+# Create an orchestrator
+orchestrator = SimpleOrchestrator(
+    agent_registry=agent_registry,
+    default_agent_name="streaming_agent"
+)
+
+# Define a streaming callback function
+def stream_callback(chunk):
+    print(chunk, end="", flush=True)
+
+# Use the orchestrator with streaming
+response = orchestrator.orchestrate(
+    thread_id="thread_1",
+    user_message="Tell me a short story about a robot.",
+    stream_callback=stream_callback
+)
+            </code></pre>
+        </main>
+    </div>
+    <footer>
+        <p>&copy; 2025 Moya Documentation</p>
+    </footer>
+</body>
+</html>
