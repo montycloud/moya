@@ -1,0 +1,250 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/inter/v12/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2) format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxTOlOV.woff2) format('woff2');
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 220 92% 54%;
+    --primary-hover: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 8% 46%;
+
+    --accent: 199 88% 48%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 222 84% 48%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 224 71% 4%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 92% 54%;
+    --primary-hover: 217 83% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 18%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 199 88% 48%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 212 91% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border selection:bg-primary/20 selection:text-primary;
+  }
+  
+  body {
+    @apply bg-background text-foreground antialiased overflow-x-hidden;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02", "cv03";
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+
+  .glass-morphism {
+    @apply backdrop-blur-lg bg-white/80 border border-white/20 shadow-sm;
+  }
+
+  .dark .glass-morphism {
+    @apply bg-background/80 border-white/10;
+  }
+  
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+  
+  .shimmer {
+    @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-shimmer before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent;
+  }
+}
+
+/* Custom styles for the CodeBlock component with syntax highlighting */
+.code-block {
+  @apply relative font-mono text-sm bg-secondary/50 rounded-message p-4 my-2 overflow-x-auto;
+}
+
+.dark .code-block {
+  @apply bg-secondary/30;
+}
+
+.code-block pre {
+  @apply font-mono text-sm text-foreground;
+}
+
+.code-block .language-indicator {
+  @apply absolute top-2 right-2 text-xs text-muted-foreground;
+}
+
+.code-block .copy-button {
+  @apply absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground transition-colors duration-200;
+}
+
+/* Make sure the chat messages have proper spacing */
+.chat-message p {
+  @apply my-2;
+}
+
+.chat-message ul, .chat-message ol {
+  @apply my-2 pl-6;
+}
+
+.chat-message ul {
+  @apply list-disc;
+}
+
+.chat-message ol {
+  @apply list-decimal;
+}
+
+.chat-message h1, .chat-message h2, .chat-message h3, .chat-message h4 {
+  @apply font-semibold my-3;
+}
+
+.chat-message h1 {
+  @apply text-2xl;
+}
+
+.chat-message h2 {
+  @apply text-xl;
+}
+
+.chat-message h3 {
+  @apply text-lg;
+}
+
+.chat-message code:not([class*="language-"]) {
+  @apply bg-secondary/50 rounded px-1 py-0.5 font-mono text-sm;
+}
+
+.chat-message pre code {
+  @apply bg-transparent p-0;
+}
+
+/* Ensure smooth page transitions */
+.page-transition-enter {
+  @apply opacity-0;
+}
+
+.page-transition-enter-active {
+  @apply opacity-100 transition-opacity duration-300;
+}
+
+.page-transition-exit {
+  @apply opacity-100;
+}
+
+.page-transition-exit-active {
+  @apply opacity-0 transition-opacity duration-300;
+}
+
+/* Animation utilities */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Modern card styling */
+.modern-card {
+  @apply bg-background/80 backdrop-blur-md rounded-xl border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300;
+}
+
+.dark .modern-card {
+  @apply bg-secondary/20 border-white/5;
+}
+
+/* Button hover effects */
+.button-hover-effect {
+  @apply relative overflow-hidden transition-all duration-300;
+}
+
+.button-hover-effect::after {
+  @apply content-[''] absolute inset-0 bg-white/20 scale-x-0 origin-left transition-transform duration-300;
+}
+
+.button-hover-effect:hover::after {
+  @apply scale-x-100;
+}

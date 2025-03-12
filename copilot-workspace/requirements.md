@@ -1,40 +1,34 @@
-# AI Student Mentor System Requirements
+# Moya Hackathon Mini-Site Requirements
 
-## Core Functionality
-1. Multi-Agent System
-   - Academic Advisor Agent: Handles study-related questions and homework help
-   - Career Coach Agent: Manages resume reviews and career guidance
-   - Job Search Agent: Assists with internship search and job applications
+## 1. Core Features
 
-2. Key Features
-   - Interactive chat interface
-   - Context-aware responses
-   - Memory retention of student interactions
-   - Document analysis (resumes, assignments)
-   - Personalized learning recommendations
+### Quest Experience
+- Create an interactive, quest-like interface for hackathon topics
+- Each topic should be presented in an engaging, easy-to-understand format
+- Include step-by-step guidance for participants
 
-## Technical Requirements
-1. Integration
-   - Use MOYA framework for agent orchestration
-   - Implement memory system for conversation context
-   - Support for document processing
+### AI Chat Assistant
+- Implement a chat interface with pre-defined prompts
+- Core functionalities:
+  - Framework information and technical details
+  - Hackathon topic exploration
+  - Similar project suggestions
+  - Integration support and debugging assistance
 
-2. Agent Capabilities
-   - Academic Advisor:
-     * Subject matter expertise
-     * Homework assistance
-     * Study planning
-   - Career Coach:
-     * Resume analysis
-     * Interview preparation
-     * Skill assessment
-   - Job Search Agent:
-     * Internship matching
-     * Application tracking
-     * Career path guidance
+### Knowledge Base Integration
+- Connect with Moya codebase as knowledge source
+- Support ticket creation for unresolved queries
+- Enable real-time team responses
+- Maintain updateable knowledge base
 
-3. System Constraints
-   - Python 3.10+
-   - MOYA framework compatibility
-   - Proper error handling
-   - Privacy considerations for student data
+## 2. Success Criteria
+- Participants can easily understand use cases
+- Clear documentation accessibility
+- Efficient support system for technical queries
+- Measurable reduction in common support questions
+
+## 3. Technical Requirements
+- Integration with existing Moya framework
+- Real-time ticket management system
+- Knowledge base update mechanism
+- User-friendly interface for both quest and chat features
