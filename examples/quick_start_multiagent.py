@@ -165,7 +165,7 @@ def main():
             continue
 
         # Get the last used agent or default to the first one
-        last_agent = orchestrator.agent_registry.get_agent(agents[0])
+        last_agent = orchestrator.agent_registry.get_agent(agents[0].name)
 
         # Store the user message first
         if last_agent.tool_registry:
