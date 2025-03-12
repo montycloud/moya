@@ -12,14 +12,6 @@ import os
 import sys
 
 def setup_agent():
-    # Check for API key first
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("Error: OPENAI_API_KEY environment variable is not set.")
-        print("Please set it using:")
-        print("  export OPENAI_API_KEY='your-api-key'")
-        sys.exit(1)
-
     # Set up memory components
     memory_repo = InMemoryRepository()
     memory_tool = MemoryTool(memory_repository=memory_repo)
@@ -29,10 +21,10 @@ def setup_agent():
     # Create agent configuration
     agent_config = OpenAIAgentConfig(
         system_prompt="You are a helpful AI assistant specialized in engaging conversations.",
-        model_name="gpt-4",  # Fixed typo in model name from "gpt-4o"
+        model_name="gpt-4o",
         temperature=0.7,
         max_tokens=2000,
-        api_key=api_key,  # Use the validated API key
+        api_key=os.getenv("OPENAI_API_KEY"),
         api_base=None,  # Use default OpenAI API base
         organization=None  # Use default organization
     )
