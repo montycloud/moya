@@ -41,11 +41,6 @@ class ReActOrchestrator(BaseOrchestrator):
         self.classifier = classifier
         self.default_agent_name = default_agent_name
 
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise EnvironmentError(
-                "OPENAI_API_KEY not found in environment. Please set it before using OpenAIAgent."
-            )
         self.verbose = verbose
         self.llm_agent = llm_agent
 
