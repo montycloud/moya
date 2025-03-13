@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 import json
 import logging
@@ -12,6 +13,7 @@ from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.memory_tool import MemoryTool
 from moya.tools.tool_registry import ToolRegistry
 import uuid
+from mangum import Mangum
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -54,6 +56,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="/workspaces/moya/examples/hackathon_assistant/web/dist", html=True), name="static")
 
 @app.get("/starter-prompts")
 async def get_starter_prompts():
@@ -128,6 +132,8 @@ async def health_check():
     }
     return status
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+handler = Mangum(app)

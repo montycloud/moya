@@ -1,0 +1,31 @@
+# serverless.yaml 
+
+service: moya-doc-assistant
+
+provider:
+  name: aws
+  runtime: python3.11
+  stage: dev
+  region: us-east-1
+
+functions:
+  app:
+    handler: api/main.handler
+    events:
+      - http:
+          path: /
+          method: ANY
+          cors: true
+      - http:
+          path: '/{proxy+}'
+          method: ANY
+          cors: true
+    layers:
+      - { Ref: PythonRequirementsLambdaLayer }
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    layer: true

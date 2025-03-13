@@ -55,7 +55,7 @@ class KnowledgeBaseTool(BaseTool):
             self.vector_store = Chroma(
                 collection_name="moya_docs",
                 embedding_function=embeddings,
-                persist_directory="/workspaces/moya/examples/hackathon_assistant/tools/chroma_langchain_db",  # Where the data is stored locally
+                persist_directory="/tools/chroma_langchain_db",  # Where the data is stored locally
             )
 
             # Initialize documents

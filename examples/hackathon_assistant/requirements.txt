@@ -2,3 +2,12 @@ rich>=13.0.0
 click>=8.0.0
 openai>=1.0.0
 sse-starlette>=1.0.0
+langchain
+langchain-aws
+langchain-community
+langchain-chroma
+langchain-openai
+mangum
+fastapi
+uvicorn
+moya-ai
