@@ -5,7 +5,6 @@ An Agent that uses OpenAI's ChatCompletion or Completion API
 to generate responses, pulling API key from the environment.
 """
 
-# Todo: Implement more configuration freedom for the agent.
 
 import os
 from openai import OpenAI
@@ -20,7 +19,7 @@ class OpenAIAgentConfig(AgentConfig):
     api_key: Optional[str] = None
     api_base: Optional[str] = None
     organization: Optional[str] = None
-    model_name: str = "gpt-4"
+    model_name: str = "gpt-4o"
 
 
 class OpenAIAgent(Agent):

@@ -9,6 +9,7 @@ from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.bedrock_agent import BedrockAgent, BedrockAgentConfig
 
+
 def setup_agent():
     # Set up memory components
     memory_repo = InMemoryRepository()
@@ -43,6 +44,7 @@ def setup_agent():
 
     return orchestrator, agent
 
+
 def format_conversation_context(messages):
     context = "\nPrevious conversation:\n"
     for msg in messages:
@@ -50,16 +52,17 @@ def format_conversation_context(messages):
         context += f"{sender}: {msg.content}\n"
     return context
 
+
 def main():
     orchestrator, agent = setup_agent()
     thread_id = "bedrock_chat_001"
-    
+
     print("Welcome to Bedrock Interactive Chat! (Type 'quit' or 'exit' to end)")
     print("-" * 50)
 
     while True:
         user_input = input("\nYou: ").strip()
-        
+
         if user_input.lower() in ['quit', 'exit']:
             print("\nGoodbye!")
             break
@@ -75,7 +78,7 @@ def main():
 
         # Get conversation context
         previous_messages = agent.get_last_n_messages(thread_id, n=5)
-        
+
         # Add context to the user's message
         if previous_messages:
             context = format_conversation_context(previous_messages)
@@ -100,6 +103,7 @@ def main():
             sender="assistant",
             content=response
         )
+
 
 if __name__ == "__main__":
     main()

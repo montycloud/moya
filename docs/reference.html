@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reference - Moya Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+    <link rel="icon" href="https://montycloud.com/hubfs/icon-for-favicon-1.png" type="image/png">
+</head>
+<body>
+    <header>
+        <h1>Moya Documentation</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="quickstart.html">Quickstart</a></li>
+                <li><a href="guides.html">Guides</a></li>
+                <li><a href="explanations.html">Explanations</a></li>
+                <li><a href="tutorials.html">Tutorials</a></li>
+                <li><a href="reference.html">Reference</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Reference</h3>
+            <ul>
+                <li><a href="#api-documentation">API Documentation</a></li>
+                <!-- <li><a href="#agent-classes">Agent Classes</a> -->
+                    <ul>
+                        <li><a href="#base-agent">Base Agent</a></li>
+                        <li><a href="#openai-agent">OpenAI Agent</a></li>
+                        <li><a href="#memory-tool">Memory Tool</a></li>
+                    </ul>
+                </li>
+                <!-- <li><a href="#orchestrator-classes">Orchestrator Classes</a> -->
+                    <ul>
+                        <li><a href="#simple-orchestrator">Simple Orchestrator</a></li>
+                        <li><a href="#multi-agent-orchestrator">Multi-Agent Orchestrator</a></li>
+                    </ul>
+                </li>
+                <li><a href="#examples">Examples</a></li>
+            </ul>
+        </aside>
+        
+        <main>
+            <h2>Reference</h2>
+            
+            <h3 id="api-documentation">API Documentation</h3>
+            <p>For detailed information on Moya's classes and methods, refer to the API documentation below.</p>
+            
+            <h4>Agent Classes</h4>
+            
+            <h5 id="base-agent">Base Agent</h5>
+            <pre><code class="python">
+class Agent(abc.ABC):
+    """
+    Abstract base class for all Moya agents.
+    
+    Agents are responsible for:
+    - A textual description of their capabilities (description property),
+    - Exposing an agent_type to facilitate registry logic,
+    - Initializing themselves with setup(),
+    - Handling incoming messages via handle_message(),
+    - Dynamically calling external tools via call_tool(),
+    - Discovering available tools via discover_tools(),
+    - Optionally retrieving conversation memory (summary, last n messages)
+      through a MemoryTool if registered in the tool registry.
+    """
+
+    def __init__(
+        self,
+        agent_name: str,
+        agent_type: str,
+        description: str,
+        config: Optional[Dict[str, Any]] = None,
+        tool_registry: Optional[Any] = None
+    ):
+        """
+        Initialize a new Agent.
+        
+        :param agent_name: Unique name or identifier for the agent.
+        :param agent_type: Type of agent (e.g., "OpenAIAgent", "BedrockAgent").
+        :param description: A brief explanation of the agent's capabilities.
+        :param config: Optional configuration dictionary.
+        :param tool_registry: Optional ToolRegistry to enable tool calling.
+        """
+        
+    @abc.abstractmethod
+    def setup(self):
+        """
+        Perform any necessary setup for the agent.
+        
+        This might include initializing API clients, loading models,
+        or other agent-specific setup tasks.
+        """
+        
+    @abc.abstractmethod
+    def handle_message(self, message: str, **kwargs) -> str:
+        """
+        Process a message and return a response.
+        
+        :param message: The message to process.
+        :param kwargs: Additional keyword arguments.
+        :return: The agent's response as a string.
+        """
+        
+    def call_tool(self, tool_name: str, method_name: str, *args, **kwargs) -> Any:
+        """
+        Call a method on a registered tool.
+        
+        :param tool_name: Name of the tool to call.
+        :param method_name: Name of the method to call on the tool.
+        :param args: Positional arguments to pass to the method.
+        :param kwargs: Keyword arguments to pass to the method.
+        :return: The result of the tool method call.
+        """
+        
+    def discover_tools(self) -> List[str]:
+        """
+        Return a list of available tool names from the registry.
+        
+        :return: A list of tool names (strings).
+        """
+        
+    def get_conversation_summary(self, thread_id: str) -> str:
+        """
+        Retrieve a summary of the conversation so far using the MemoryTool, if available.
+        
+        :param thread_id: The identifier of the conversation thread.
+        :return: A textual summary of the conversation so far.
+        """
+        
+    def get_last_n_messages(self, thread_id: str, n: int = 5) -> List[Any]:
+        """
+        Retrieve the last n messages of the conversation using the MemoryTool, if available.
+        
+        :param thread_id: The identifier of the conversation thread.
+        :param n: The number of recent messages to retrieve.
+        :return: A list of message objects or dictionaries.
+        """
+            </code></pre>
+            
+            <h5 id="openai-agent">OpenAI Agent</h5>
+            <pre><code class="python">
+class OpenAIAgent(Agent):
+    """
+    A simple OpenAI-based agent that uses the ChatCompletion API.
+    """
+
+    def __init__(
+        self,
+        agent_name: str,
+        description: str,
+        config: Optional[Dict[str, Any]] = None,
+        tool_registry: Optional[Any] = None,
+        agent_config: Optional[OpenAIAgentConfig] = None
+    ):
+        """
+        :param agent_name: Unique name or identifier for the agent.
+        :param description: A brief explanation of the agent's capabilities.
+        :param config: Optional config dict (unused by default).
+        :param tool_registry: Optional ToolRegistry to enable tool calling.
+        :param agent_config: Optional configuration for the agent.
+        """
+        
+    def setup(self):
+        """
+        Initialize the OpenAI client and perform any other necessary setup.
+        """
+        
+    def handle_message(self, message: str, **kwargs) -> str:
+        """
+        Calls OpenAI ChatCompletion to handle the user's message.
+        
+        :param message: The message to process.
+        :param kwargs: Additional keyword arguments.
+        :return: The agent's response as a string.
+        """
+        
+    def handle_message_stream(self, message: str, **kwargs):
+        """
+        Calls OpenAI ChatCompletion to handle the user's message with streaming support.
+        
+        :param message: The message to process.
+        :param kwargs: Additional keyword arguments.
+        :return: A generator yielding response chunks.
+        """
+            </code></pre>
+            
+            <h5 id="memory-tool">Memory Tool</h5>
+            <pre><code class="python">
+class MemoryTool(BaseTool):
+    """
+    A tool for storing and retrieving conversation memory.
+    """
+
+    def __init__(self, memory_repository):
+        """
+        Initialize the MemoryTool with a memory repository.
+        
+        :param memory_repository: A repository for storing and retrieving messages.
+        """
+        
+    def store_message(self, thread_id: str, sender: str, content: str) -> None:
+        """
+        Store a message in the memory repository.
+        
+        :param thread_id: The identifier of the conversation thread.
+        :param sender: The sender of the message (e.g., 'user', 'assistant').
+        :param content: The content of the message.
+        """
+        
+    def get_last_n_messages(self, thread_id: str, n: int = 5) -> List[Any]:
+        """
+        Retrieve the last n messages from the memory repository.
+        
+        :param thread_id: The identifier of the conversation thread.
+        :param n: The number of recent messages to retrieve.
+        :return: A list of message objects.
+        """
+        
+    def get_thread_summary(self, thread_id: str) -> str:
+        """
+        Generate a summary of the conversation thread.
+        
+        :param thread_id: The identifier of the conversation thread.
+        :return: A textual summary of the conversation.
+        """
+            </code></pre>
+            
+            <!-- <h4>Orchestrator Classes</h4> -->
+            
+            <h5 id="simple-orchestrator">Simple Orchestrator</h5>
+            <pre><code class="python">
+class SimpleOrchestrator:
+    """
+    A simple orchestrator that routes all messages to a single default agent.
+    """
+
+    def __init__(self, agent_registry, default_agent_name: str):
+        """
+        Initialize the SimpleOrchestrator.
+        
+        :param agent_registry: The registry containing available agents.
+        :param default_agent_name: The name of the default agent to use.
+        """
+        
+    def orchestrate(self, thread_id: str, user_message: str, stream_callback=None) -> str:
+        """
+        Process a user message and return the agent's response.
+        
+        :param thread_id: The identifier of the conversation thread.
+        :param user_message: The user's message.
+        :param stream_callback: Optional callback for streaming responses.
+        :return: The agent's response as a string.
+        """
+            </code></pre>
+            
+            <h5 id="multi-agent-orchestrator">Multi-Agent Orchestrator</h5>
+            <pre><code class="python">
+class MultiAgentOrchestrator:
+    """
+    An orchestrator that routes messages to different agents based on a classifier.
+    """
+
+    def __init__(self, agent_registry, classifier):
+        """
+        Initialize the MultiAgentOrchestrator.
+        
+        :param agent_registry: The registry containing available agents.
+        :param classifier: The classifier for routing messages to agents.
+        """
+        
+    def orchestrate(self, thread_id: str, user_message: str, stream_callback=None) -> str:
+        """
+        Process a user message, route it to the appropriate agent, and return the response.
+        
+        :param thread_id: The identifier of the conversation thread.
+        :param user_message: The user's message.
+        :param stream_callback: Optional callback for streaming responses.
+        :return: The selected agent's response as a string.
+        """
+            </code></pre>
+            
+            <h3>Examples</h3>
+            <p>Check out the examples provided in the Moya repository to see practical implementations of various features. These examples serve as a great starting point for your own projects.</p>
+            
+            <h4>Available Examples</h4>
+            <ul>
+                <li><code>quick_start.py</code>: A minimal example demonstrating a working Moya setup.</li>
+                <li><code>quick_start_openai.py</code>: Interactive chat example using OpenAI agent with conversation memory.</li>
+                <li><code>quick_start_bedrock.py</code>: Interactive chat example using Bedrock agent with conversation memory.</li>
+                <li><code>quick_start_ollama.py</code>: Interactive chat example using Ollama agent with conversation memory.</li>
+                <li><code>quick_start_multiagent.py</code>: Example of a multi-agent system with language-specific agents.</li>
+                <li><code>quick_start_multiagent_react.py</code>: Example of a multi-agent system using the ReAct pattern.</li>
+                <li><code>dynamic_agents.py</code>: Example demonstrating dynamic agent creation and registration during runtime.</li>
+                <li><code>remote_agent_server.py</code>: Example of a remote agent server using FastAPI.</li>
+                <li><code>remote_agent_server_with_auth.py</code>: Example of a remote agent server with authentication.</li>
+            </ul>
+        </main>
+    </div>
+    <footer>
+        <p>&copy; 2025 Moya Documentation</p>
+    </footer>
+</body>
+</html>

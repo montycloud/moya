@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorials - Moya Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+    <link rel="icon" href="https://montycloud.com/hubfs/icon-for-favicon-1.png" type="image/png">
+</head>
+<body>
+    <header>
+        <h1>Moya Documentation</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="quickstart.html">Quickstart</a></li>
+                <li><a href="guides.html">Guides</a></li>
+                <li><a href="explanations.html">Explanations</a></li>
+                <li><a href="tutorials.html">Tutorials</a></li>
+                <li><a href="reference.html">Reference</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Tutorials</h3>
+            <ul>
+                <li><a href="#simple-agent">Simple Agent</a></li>
+                <li><a href="#multi-agent">Multi-Agent System</a></li>
+                <li><a href="#dynamic-agents">Dynamic Agents</a></li>
+                <li><a href="#remote-agent">Remote Agent</a></li>
+                <li><a href="#ollama-integration">Ollama Integration</a></li>
+            </ul>
+        </aside>
+        
+        <main>
+            <h2>Tutorials</h2>
+            
+            <div class="toc">
+                <h4>Table of Contents</h4>
+                <ul>
+                    <li><a href="#simple-agent">Building a Simple Agent with Memory</a></li>
+                    <li><a href="#multi-agent">Creating a Multi-Agent System</a></li>
+                    <li><a href="#dynamic-agents">Implementing Dynamic Agent Creation</a></li>
+                    <li><a href="#remote-agent">Deploying a Remote Agent Server</a></li>
+                    <li><a href="#ollama-integration">Integrating with Ollama for Local LLMs</a></li>
+                </ul>
+            </div>
+            
+            <h3 id="simple-agent">Building a Simple Agent with Memory</h3>
+            <p>In this tutorial, we'll create a simple agent that can remember conversation history using Moya's memory tools.</p>
+            
+            <h4>Step 1: Set Up the Project Structure</h4>
+            <p>First, create a new Python file called <code>simple_memory_agent.py</code>:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>simple_memory_agent.py</span>
+                </div>
+                <pre><code class="language-python">"""
+A simple example of an agent with conversation memory.
+"""
+
+import os
+from moya.memory.in_memory_repository import InMemoryRepository
+from moya.tools.tool_registry import ToolRegistry
+from moya.tools.memory_tool import MemoryTool
+from moya.registry.agent_registry import AgentRegistry
+from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig</code></pre>
+            </div>
+            
+            <h4>Step 2: Set Up Memory Components</h4>
+            <p>Next, we'll set up the memory repository and tool:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>simple_memory_agent.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def setup_agent():
+    # Set up memory components
+    memory_repo = InMemoryRepository()
+    memory_tool = MemoryTool(memory_repository=memory_repo)
+    tool_registry = ToolRegistry()
+    tool_registry.register_tool(memory_tool)
+    
+    # Create agent configuration
+    agent_config = OpenAIAgentConfig(
+        system_prompt="You are a helpful AI assistant with memory capabilities.",
+        model_name="gpt-4o",
+        temperature=0.7
+    )
+    
+    # Create and set up the agent
+    agent = OpenAIAgent(
+        agent_name="memory_agent",
+        description="An agent with conversation memory",
+        agent_config=agent_config,
+        tool_registry=tool_registry
+    )
+    agent.setup()
+    
+    # Set up registry and orchestrator
+    agent_registry = AgentRegistry()
+    agent_registry.register_agent(agent)
+    orchestrator = SimpleOrchestrator(
+        agent_registry=agent_registry,
+        default_agent_name="memory_agent"
+    )
+    
+    return orchestrator, agent</code></pre>
+            </div>
+            
+            <h4>Step 3: Create Helper Functions</h4>
+            <p>Add a function to format conversation context:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>simple_memory_agent.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def format_conversation_context(messages):
+    """Format conversation history for context."""
+    context = "\nPrevious conversation:\n"
+    for msg in messages:
+        sender = "User" if msg.sender == "user" else "Assistant"
+        context += f"{sender}: {msg.content}\n"
+    return context</code></pre>
+            </div>
+            
+            <h4>Step 4: Implement the Main Function</h4>
+            <p>Now, let's create the main function for our interactive chat:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>simple_memory_agent.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def main():
+    orchestrator, agent = setup_agent()
+    thread_id = "memory_chat_001"
+    
+    print("Welcome to Memory Agent Chat! (Type 'quit' or 'exit' to end)")
+    print("-" * 50)
+    
+    while True:
+        user_input = input("\nYou: ").strip()
+        
+        if user_input.lower() in ['quit', 'exit']:
+            print("\nGoodbye!")
+            break
+        
+        # Store the user message
+        agent.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="user",
+            content=user_input
+        )
+        
+        # Get conversation context
+        previous_messages = agent.get_last_n_messages(thread_id, n=5)
+        
+        # Add context to the user's message
+        if previous_messages:
+            context = format_conversation_context(previous_messages)
+            enhanced_input = f"{context}\nCurrent user message: {user_input}"
+        else:
+            enhanced_input = user_input
+        
+        print("\nAssistant: ", end="", flush=True)
+        
+        # Define callback for streaming
+        def stream_callback(chunk):
+            print(chunk, end="", flush=True)
+        
+        # Get response using stream_callback
+        response = orchestrator.orchestrate(
+            thread_id=thread_id,
+            user_message=enhanced_input,
+            stream_callback=stream_callback
+        )
+        
+        print()  # New line after response
+        
+        # Store the assistant's response
+        agent.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="assistant",
+            content=response
+        )
+
+if __name__ == "__main__":
+    main()</code></pre>
+            </div>
+            
+            <h4>Step 5: Run the Agent</h4>
+            <p>Make sure your OpenAI API key is set in your environment, then run the script:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>Terminal</span>
+                </div>
+                <pre><code class="language-bash">export OPENAI_API_KEY=your_api_key_here
+python simple_memory_agent.py</code></pre>
+            </div>
+            
+            <p>You should now be able to chat with your agent, and it will remember the conversation history!</p>
+            
+            <div class="note">
+                <strong>Note:</strong> This example is similar to the <code>quick_start_openai.py</code> example included in the Moya repository. You can run that example directly with <code>python moya/examples/quick_start_openai.py</code>.
+            </div>
+            
+            <h3 id="multi-agent">Creating a Multi-Agent System</h3>
+            <p>In this tutorial, we'll build a system with multiple specialized agents and a classifier to route messages to the appropriate agent.</p>
+            
+            <h4>Step 1: Set Up the Project Structure</h4>
+            <p>Create a new Python file called <code>multi_agent_system.py</code>:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py</span>
+                </div>
+                <pre><code class="language-python">"""
+A multi-agent system with specialized agents and a classifier.
+"""
+
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.classifiers.llm_classifier import LLMClassifier
+from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
+from moya.registry.agent_registry import AgentRegistry</code></pre>
+            </div>
+            
+            <h4>Step 2: Set Up the Orchestrator</h4>
+            <p>Next, we'll set up the orchestrator:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def setup_orchestrator():
+    # Set up orchestrator
+    agent_registry = AgentRegistry()
+    orchestrator = MultiAgentOrchestrator(
+        agent_registry=agent_registry,
+        default_agent_name="memory_agent"
+    )
+    
+    return orchestrator</code></pre>
+            </div>
+            
+            <h4>Step 3: Create Helper Functions</h4>
+            <p>Add a function to format conversation context:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def format_conversation_context(messages):
+    """Format conversation history for context."""
+    context = "\nPrevious conversation:\n"
+    for msg in messages:
+        sender = "User" if msg.sender == "user" else "Assistant"
+        context += f"{sender}: {msg.content}\n"
+    return context</code></pre>
+            </div>
+            
+            <h4>Step 4: Implement the Main Function</h4>
+            <p>Now, let's create the main function for our interactive chat:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def main():
+    orchestrator = setup_orchestrator()
+    thread_id = "memory_chat_001"
+    
+    print("Welcome to Multi-Agent System Chat! (Type 'quit' or 'exit' to end)")
+    print("-" * 50)
+    
+    while True:
+        user_input = input("\nYou: ").strip()
+        
+        if user_input.lower() in ['quit', 'exit']:
+            print("\nGoodbye!")
+            break
+        
+        # Store the user message
+        orchestrator.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="user",
+            content=user_input
+        )
+        
+        # Get conversation context
+        previous_messages = orchestrator.get_last_n_messages(thread_id, n=5)
+        
+        # Add context to the user's message
+        if previous_messages:
+            context = format_conversation_context(previous_messages)
+            enhanced_input = f"{context}\nCurrent user message: {user_input}"
+        else:
+            enhanced_input = user_input
+        
+        print("\nAssistant: ", end="", flush=True)
+        
+        # Define callback for streaming
+        def stream_callback(chunk):
+            print(chunk, end="", flush=True)
+        
+        # Get response using stream_callback
+        response = orchestrator.orchestrate(
+            thread_id=thread_id,
+            user_message=enhanced_input,
+            stream_callback=stream_callback
+        )
+        
+        print()  # New line after response
+        
+        # Store the assistant's response
+        orchestrator.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="assistant",
+            content=response
+        )
+
+if __name__ == "__main__":
+    main()</code></pre>
+            </div>
+            
+            <h4>Step 5: Run the System</h4>
+            <p>Make sure your OpenAI API key is set in your environment, then run the script:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>Terminal</span>
+                </div>
+                <pre><code class="language-bash">export OPENAI_API_KEY=your_api_key_here
+python multi_agent_system.py</code></pre>
+            </div>
+            
+            <p>You should now be able to chat with your system, and it will remember the conversation history!</p>
+            
+            <div class="note">
+                <strong>Note:</strong> This example is similar to the <code>quick_start_openai.py</code> example included in the Moya repository. You can run that example directly with <code>python moya/examples/quick_start_openai.py</code>.
+            </div>
+            
+            <h3 id="dynamic-agents">Implementing Dynamic Agent Creation</h3>
+            <p>In this tutorial, we'll implement dynamic agent creation in a multi-agent system.</p>
+            
+            <h4>Step 1: Set Up the Project Structure</h4>
+            <p>Create a new Python file called <code>dynamic_agent_creation.py</code>:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>dynamic_agent_creation.py</span>
+                </div>
+                <pre><code class="language-python">"""
+A multi-agent system with dynamic agent creation.
+"""
+
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.classifiers.llm_classifier import LLMClassifier
+from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
+from moya.registry.agent_registry import AgentRegistry</code></pre>
+            </div>
+            
+            <h4>Step 2: Set Up the Orchestrator</h4>
+            <p>Next, we'll set up the orchestrator:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>dynamic_agent_creation.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def setup_orchestrator():
+    # Set up orchestrator
+    agent_registry = AgentRegistry()
+    orchestrator = MultiAgentOrchestrator(
+        agent_registry=agent_registry,
+        default_agent_name="memory_agent"
+    )
+    
+    return orchestrator</code></pre>
+            </div>
+            
+            <h4>Step 3: Create Helper Functions</h4>
+            <p>Add a function to format conversation context:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>dynamic_agent_creation.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def format_conversation_context(messages):
+    """Format conversation history for context."""
+    context = "\nPrevious conversation:\n"
+    for msg in messages:
+        sender = "User" if msg.sender == "user" else "Assistant"
+        context += f"{sender}: {msg.content}\n"
+    return context</code></pre>
+            </div>
+            
+            <h4>Step 4: Implement the Main Function</h4>
+            <p>Now, let's create the main function for our interactive chat:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>dynamic_agent_creation.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def main():
+    orchestrator = setup_orchestrator()
+    thread_id = "memory_chat_001"
+    
+    print("Welcome to Multi-Agent System Chat! (Type 'quit' or 'exit' to end)")
+    print("-" * 50)
+    
+    while True:
+        user_input = input("\nYou: ").strip()
+        
+        if user_input.lower() in ['quit', 'exit']:
+            print("\nGoodbye!")
+            break
+        
+        # Store the user message
+        orchestrator.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="user",
+            content=user_input
+        )
+        
+        # Get conversation context
+        previous_messages = orchestrator.get_last_n_messages(thread_id, n=5)
+        
+        # Add context to the user's message
+        if previous_messages:
+            context = format_conversation_context(previous_messages)
+            enhanced_input = f"{context}\nCurrent user message: {user_input}"
+        else:
+            enhanced_input = user_input
+        
+        print("\nAssistant: ", end="", flush=True)
+        
+        # Define callback for streaming
+        def stream_callback(chunk):
+            print(chunk, end="", flush=True)
+        
+        # Get response using stream_callback
+        response = orchestrator.orchestrate(
+            thread_id=thread_id,
+            user_message=enhanced_input,
+            stream_callback=stream_callback
+        )
+        
+        print()  # New line after response
+        
+        # Store the assistant's response
+        orchestrator.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="assistant",
+            content=response
+        )
+
+if __name__ == "__main__":
+    main()</code></pre>
+            </div>
+            
+            <h4>Step 5: Run the System</h4>
+            <p>Make sure your OpenAI API key is set in your environment, then run the script:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>Terminal</span>
+                </div>
+                <pre><code class="language-bash">export OPENAI_API_KEY=your_api_key_here
+python dynamic_agent_creation.py</code></pre>
+            </div>
+            
+            <p>You should now be able to chat with your system, and it will remember the conversation history!</p>
+            
+            <div class="note">
+                <strong>Note:</strong> This example is similar to the <code>quick_start_openai.py</code> example included in the Moya repository. You can run that example directly with <code>python moya/examples/quick_start_openai.py</code>.
+            </div>
+            
+            <h3 id="remote-agent">Deploying a Remote Agent Server</h3>
+            <p>In this tutorial, we'll deploy a remote agent server using Moya.</p>
+            
+            <h4>Step 1: Set Up the Project Structure</h4>
+            <p>Create a new Python file called <code>remote_agent_server.py</code>:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>remote_agent_server.py</span>
+                </div>
+                <pre><code class="language-python">"""
+A remote agent server using Moya.
+"""
+
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.classifiers.llm_classifier import LLMClassifier
+from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
+from moya.registry.agent_registry import AgentRegistry</code></pre>
+            </div>
+            
+            <h4>Step 2: Set Up the Orchestrator</h4>
+            <p>Next, we'll set up the orchestrator:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>remote_agent_server.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def setup_orchestrator():
+    # Set up orchestrator
+    agent_registry = AgentRegistry()
+    orchestrator = MultiAgentOrchestrator(
+        agent_registry=agent_registry,
+        default_agent_name="memory_agent"
+    )
+    
+    return orchestrator</code></pre>
+            </div>
+            
+            <h4>Step 3: Create Helper Functions</h4>
+            <p>Add a function to format conversation context:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>remote_agent_server.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def format_conversation_context(messages):
+    """Format conversation history for context."""
+    context = "\nPrevious conversation:\n"
+    for msg in messages:
+        sender = "User" if msg.sender == "user" else "Assistant"
+        context += f"{sender}: {msg.content}\n"
+    return context</code></pre>
+            </div>
+            
+            <h4>Step 4: Implement the Main Function</h4>
+            <p>Now, let's create the main function for our interactive chat:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>remote_agent_server.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def main():
+    orchestrator = setup_orchestrator()
+    thread_id = "memory_chat_001"
+    
+    print("Welcome to Multi-Agent System Chat! (Type 'quit' or 'exit' to end)")
+    print("-" * 50)
+    
+    while True:
+        user_input = input("\nYou: ").strip()
+        
+        if user_input.lower() in ['quit', 'exit']:
+            print("\nGoodbye!")
+            break
+        
+        # Store the user message
+        orchestrator.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="user",
+            content=user_input
+        )
+        
+        # Get conversation context
+        previous_messages = orchestrator.get_last_n_messages(thread_id, n=5)
+        
+        # Add context to the user's message
+        if previous_messages:
+            context = format_conversation_context(previous_messages)
+            enhanced_input = f"{context}\nCurrent user message: {user_input}"
+        else:
+            enhanced_input = user_input
+        
+        print("\nAssistant: ", end="", flush=True)
+        
+        # Define callback for streaming
+        def stream_callback(chunk):
+            print(chunk, end="", flush=True)
+        
+        # Get response using stream_callback
+        response = orchestrator.orchestrate(
+            thread_id=thread_id,
+            user_message=enhanced_input,
+            stream_callback=stream_callback
+        )
+        
+        print()  # New line after response
+        
+        # Store the assistant's response
+        orchestrator.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="assistant",
+            content=response
+        )
+
+if __name__ == "__main__":
+    main()</code></pre>
+            </div>
+            
+            <h4>Step 5: Run the System</h4>
+            <p>Make sure your OpenAI API key is set in your environment, then run the script:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>Terminal</span>
+                </div>
+                <pre><code class="language-bash">export OPENAI_API_KEY=your_api_key_here
+python remote_agent_server.py</code></pre>
+            </div>
+            
+            <p>You should now be able to chat with your system, and it will remember the conversation history!</p>
+            
+            <div class="note">
+                <strong>Note:</strong> This example is similar to the <code>quick_start_openai.py</code> example included in the Moya repository. You can run that example directly with <code>python moya/examples/quick_start_openai.py</code>.
+            </div>
+            
+            <h3 id="ollama-integration">Integrating with Ollama for Local LLMs</h3>
+            <p>In this tutorial, we'll integrate with Ollama for local LLMs.</p>
+            
+            <h4>Step 1: Set Up the Project Structure</h4>
+            <p>Create a new Python file called <code>ollama_integration.py</code>:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>ollama_integration.py</span>
+                </div>
+                <pre><code class="language-python">"""
+Integrating with Ollama for local LLMs.
+"""
+
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.classifiers.llm_classifier import LLMClassifier
+from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
+from moya.registry.agent_registry import AgentRegistry</code></pre>
+            </div>
+            
+            <h4>Step 2: Set Up the Orchestrator</h4>
+            <p>Next, we'll set up the orchestrator:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>ollama_integration.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def setup_orchestrator():
+    # Set up orchestrator
+    agent_registry = AgentRegistry()
+    orchestrator = MultiAgentOrchestrator(
+        agent_registry=agent_registry,
+        default_agent_name="memory_agent"
+    )
+    
+    return orchestrator</code></pre>
+            </div>
+            
+            <h4>Step 3: Create Helper Functions</h4>
+            <p>Add a function to format conversation context:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>ollama_integration.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def format_conversation_context(messages):
+    """Format conversation history for context."""
+    context = "\nPrevious conversation:\n"
+    for msg in messages:
+        sender = "User" if msg.sender == "user" else "Assistant"
+        context += f"{sender}: {msg.content}\n"
+    return context</code></pre>
+            </div>
+            
+            <h4>Step 4: Implement the Main Function</h4>
+            <p>Now, let's create the main function for our interactive chat:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>ollama_integration.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def main():
+    orchestrator = setup_orchestrator()
+    thread_id = "memory_chat_001"
+    
+    print("Welcome to Multi-Agent System Chat! (Type 'quit' or 'exit' to end)")
+    print("-" * 50)
+    
+    while True:
+        user_input = input("\nYou: ").strip()
+        
+        if user_input.lower() in ['quit', 'exit']:
+            print("\nGoodbye!")
+            break
+        
+        # Store the user message
+        orchestrator.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="user",
+            content=user_input
+        )
+        
+        # Get conversation context
+        previous_messages = orchestrator.get_last_n_messages(thread_id, n=5)
+        
+        # Add context to the user's message
+        if previous_messages:
+            context = format_conversation_context(previous_messages)
+            enhanced_input = f"{context}\nCurrent user message: {user_input}"
+        else:
+            enhanced_input = user_input
+        
+        print("\nAssistant: ", end="", flush=True)
+        
+        # Define callback for streaming
+        def stream_callback(chunk):
+            print(chunk, end="", flush=True)
+        
+        # Get response using stream_callback
+        response = orchestrator.orchestrate(
+            thread_id=thread_id,
+            user_message=enhanced_input,
+            stream_callback=stream_callback
+        )
+        
+        print()  # New line after response
+        
+        # Store the assistant's response
+        orchestrator.call_tool(
+            tool_name="MemoryTool",
+            method_name="store_message",
+            thread_id=thread_id,
+            sender="assistant",
+            content=response
+        )
+
+if __name__ == "__main__":
+    main()</code></pre>
+            </div>
+            
+            <h4>Step 5: Run the System</h4>
+            <p>Make sure your OpenAI API key is set in your environment, then run the script:</p>
+            
+            <div class="code-block">
+                <div class="code-header">
+                    <span>Terminal</span>
+                </div>
+                <pre><code class="language-bash">export OPENAI_API_KEY=your_api_key_here
+python ollama_integration.py</code></pre>
+            </div>
+            
+            <p>You should now be able to chat with your system, and it will remember the conversation history!</p>
+            
+            <div class="note">
+                <strong>Note:</strong> This example is similar to the <code>quick_start_openai.py</code> example included in the Moya repository. You can run that example directly with <code>python moya/examples/quick_start_openai.py</code>.
+            </div>
+        </main>
+    </div>
+</body>
+</html>

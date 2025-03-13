@@ -1,11 +1,10 @@
+import asyncio
+import uvicorn
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-import asyncio
-import uvicorn
-from asyncio import CancelledError
 
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.memory.in_memory_repository import InMemoryRepository
@@ -18,6 +17,7 @@ security = HTTPBearer()
 # Configure your bearer token
 VALID_TOKEN = "your-secret-token-here"
 
+
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if credentials.credentials != VALID_TOKEN:
         raise HTTPException(
@@ -27,10 +27,12 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
     return credentials.credentials
 
+
 class Message(BaseModel):
     content: str
     thread_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+
 
 def setup_agent():
     """Set up OpenAI agent with memory capabilities."""
@@ -55,13 +57,16 @@ def setup_agent():
     agent.setup()
     return agent
 
+
 # Initialize agent at startup
 agent = setup_agent()
+
 
 @app.get("/health", dependencies=[Depends(verify_token)])
 async def health_check():
     """Protected health check endpoint."""
     return {"status": "healthy", "agent": agent.agent_name}
+
 
 @app.post("/chat", dependencies=[Depends(verify_token)])
 async def chat(request: Request):
@@ -69,9 +74,10 @@ async def chat(request: Request):
     data = await request.json()
     message = data['message']
     thread_id = data.get('thread_id', 'default_thread')
-    
+
     response = agent.handle_message(message, thread_id=thread_id)
     return {"response": response}
+
 
 @app.post("/chat/stream", dependencies=[Depends(verify_token)])
 async def chat_stream(request: Request):
@@ -79,11 +85,12 @@ async def chat_stream(request: Request):
     data = await request.json()
     message = data['message']
     thread_id = data.get('thread_id', 'default_thread')
-    
+
     return StreamingResponse(
         stream_response(message, thread_id),
         media_type="text/event-stream"
     )
+
 
 async def stream_response(message: str, thread_id: str):
     """Stream response from OpenAI agent."""

@@ -7,6 +7,7 @@ while offering discovery methods and a higher-level interface.
 
 from typing import List, Optional
 from moya.agents.base_agent import Agent
+from moya.agents.agent_info import AgentInfo
 from moya.registry.base_agent_repository import BaseAgentRepository
 from moya.registry.in_memory_agent_repository import InMemoryAgentRepository
 
@@ -49,13 +50,13 @@ class AgentRegistry:
         """
         return self.repository.get_agent(agent_name)
 
-    def list_agents(self) -> List[str]:
+    def list_agents(self) -> List[AgentInfo]:
         """
-        List the names of all currently registered Agents.
+        List the information of all currently registered Agents.
 
-        :return: A list of agent_name strings.
+        :return: A list of AgentInfo.
         """
-        return self.repository.list_agent_names()
+        return self.repository.list_agents()
 
     def find_agents_by_type(self, agent_type: str) -> List[Agent]:
         """
@@ -65,10 +66,9 @@ class AgentRegistry:
         For larger scale data, consider indexing or a specialized repository method.
         """
         matching_agents = []
-        for agent_name in self.list_agents():
-            agent = self.get_agent(agent_name)
-            if agent and agent.agent_type == agent_type:
-                matching_agents.append(agent)
+        for agent in self.list_agents():
+            if agent.type == agent_type:
+                matching_agents.append(self.repository.get_agent(agent.name))
         return matching_agents
 
     def find_agents_by_description(self, search_text: str) -> List[Agent]:
@@ -80,8 +80,7 @@ class AgentRegistry:
         """
         search_text_lower = search_text.lower()
         matching_agents = []
-        for agent_name in self.list_agents():
-            agent = self.get_agent(agent_name)
-            if agent and search_text_lower in agent.description.lower():
-                matching_agents.append(agent)
+        for agent in self.list_agents():
+            if search_text_lower in agent.description.lower():
+                matching_agents.append(self.repository.get_agent(agent.name))
         return matching_agents

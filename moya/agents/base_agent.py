@@ -15,13 +15,11 @@ Agents can:
   through a MemoryTool if registered in the tool registry.
 """
 
-# TODO: Implement proper tool handling support for agents. 
-#       Add support for agent specific tools spec
-# TODO: Port tool-related methods from SimpleOrchestrator.
 
 import abc
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+
 
 @dataclass
 class AgentConfig:
@@ -34,15 +32,16 @@ class AgentConfig:
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
     stop_sequences: list = None
-    
+
     def __post_init__(self):
         if self.stop_sequences is None:
             self.stop_sequences = []
 
+
 class Agent(abc.ABC):
     """
     Abstract base class for all Moya agents.
-    
+
     Agents are responsible for:
     - A textual description of their capabilities (description property),
     - A type descriptor (agent_type) that helps the registry handle them,
@@ -61,6 +60,7 @@ class Agent(abc.ABC):
         agent_type: str,
         description: str,
         config: Optional[Dict[str, Any]] = None,
+        agent_config: Optional[AgentConfig] = None,
         tool_registry: Optional[Any] = None
     ):
         """
@@ -76,12 +76,15 @@ class Agent(abc.ABC):
                            (e.g., "BaseAgent", "RemoteAgent", "OpenAIAgent").
         :param description: A brief explanation of the agent's capabilities and role.
         :param config: Optional configuration dict (e.g., API keys, parameters).
+        :param agent_config: Optional AgentConfig object with model parameters.
         :param tool_registry: A reference to a centralized ToolRegistry (if any).
         """
         self.agent_name = agent_name
         self.agent_type = agent_type
         self.description = description
         self.config = config or {}
+        self.agent_config = agent_config or AgentConfig()
+        self.system_prompt = self.agent_config.system_prompt
         self.tool_registry = tool_registry
 
     @abc.abstractmethod

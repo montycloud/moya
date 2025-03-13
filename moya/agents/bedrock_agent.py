@@ -5,13 +5,12 @@ An Agent that uses AWS Bedrock API to generate responses,
 pulling AWS credentials from environment or AWS configuration.
 """
 
-# Todo: Implement more configuration freedom for the agent.
-
 import json
 import boto3
 from typing import Any, Dict, Optional
-from moya.agents.base_agent import Agent
+from moya.agents.base_agent import Agent, AgentConfig
 from dataclasses import dataclass
+
 
 @dataclass
 class BedrockAgentConfig(AgentConfig):
@@ -21,6 +20,7 @@ class BedrockAgentConfig(AgentConfig):
     temperature: float = 0.7
     top_p: float = 0.9
     top_k: int = 250
+
 
 class BedrockAgent(Agent):
     """
@@ -98,10 +98,10 @@ class BedrockAgent(Agent):
                 modelId=self.model_id,
                 body=json.dumps(body)
             )
-            
+
             response_body = json.loads(response['body'].read())
             return response_body.get('completion', response_body.get('outputText', ''))
-            
+
         except Exception as e:
             return f"[BedrockAgent error: {str(e)}]"
 
@@ -130,14 +130,14 @@ class BedrockAgent(Agent):
                 modelId=self.model_id,
                 body=json.dumps(body)
             )
-            
+
             for event in response['body']:
                 chunk = json.loads(event['chunk']['bytes'])
                 if 'completion' in chunk:
                     yield chunk['completion']
                 elif 'outputText' in chunk:
                     yield chunk['outputText']
-                    
+
         except Exception as e:
             error_message = f"[BedrockAgent error: {str(e)}]"
             print(error_message)

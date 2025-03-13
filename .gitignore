@@ -22,3 +22,5 @@ venv/
 
 # egg-info
 *.egg-info/
+
+*/.env

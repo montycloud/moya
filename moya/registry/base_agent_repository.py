@@ -8,6 +8,8 @@ in memory, databases, files, etc.
 
 import abc
 from typing import List, Optional
+
+from moya.agents.agent_info import AgentInfo
 from moya.agents.base_agent import Agent
 
 
@@ -45,10 +47,10 @@ class BaseAgentRepository(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def list_agent_names(self) -> List[str]:
+    def list_agents(self) -> List[AgentInfo]:
         """
-        List the names of all agents currently stored.
+        List the information of all agents currently stored.
 
-        :return: A list of agent_name strings.
+        :return: A list of AgentInfo.
         """
         pass
