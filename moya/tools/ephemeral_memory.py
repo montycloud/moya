@@ -32,7 +32,7 @@ class EphemeralMemory:
         sender: str,
         content: str,
         metadata: Optional[dict] = None
-    ) -> None:
+    ) -> str:
         """
         Store a message in the specified thread. If the thread doesn't exist,
         we create it. 
@@ -56,6 +56,7 @@ class EphemeralMemory:
             metadata=metadata
         )
         EphemeralMemory.memory_repository.append_message(thread_id, message)
+        return f"Message stored in thread {thread_id}."
 
     @staticmethod
     def get_last_n_messages(thread_id: str, n: int = 5) -> List[Message]:
