@@ -10,10 +10,10 @@ A minimal example that demonstrates a working Moya setup:
 
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
-from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
-from moya.agents.base_agent import Agent
+from moya.agents.base_agent import Agent, AgentConfig
+from moya.tools.ephemeral_memory import EphemeralMemory
 
 
 # 1. Create a simple Agent that uses the MemoryTool
@@ -21,7 +21,7 @@ class SimpleMemoryAgent(Agent):
     def setup(self):
         # Any initialization logic goes here
         pass
-
+    
     def handle_message(self, message: str, **kwargs) -> str:
         """
         When this agent handles a message, it will:
@@ -31,38 +31,10 @@ class SimpleMemoryAgent(Agent):
         """
         thread_id = kwargs.get("thread_id", "default-thread")
 
-        # Store the incoming message
-        self.call_tool(
-            tool_name="MemoryTool",
-            method_name="store_message",
-            thread_id=thread_id,
-            sender="user",
-            content=message
-        )
-
-        # Let's also store the fact that the agent has "seen" this message
-        # Or we can read the last 3 messages:
-        last_3_msgs = self.call_tool(
-            tool_name="MemoryTool",
-            method_name="get_last_n_messages",
-            thread_id=thread_id,
-            n=3
-        )
 
         # Generate a naive response
         response_text = (
             f"[SimpleMemoryAgent responding to: '{message}']\n"
-            f"I see {len(last_3_msgs)} recent messages in this thread.\n"
-            f"Thanks for sharing!"
-        )
-
-        # Store the agent's response in memory
-        self.call_tool(
-            tool_name="MemoryTool",
-            method_name="store_message",
-            thread_id=thread_id,
-            sender=self.agent_name,
-            content=response_text
         )
 
         return response_text
@@ -77,21 +49,19 @@ class SimpleMemoryAgent(Agent):
 
 
 def main():
-    # 2. Create the memory repository and tool
-    memory_repo = InMemoryRepository()
-    memory_tool = MemoryTool(memory_repository=memory_repo)
-
+    # 2. Create the memory repository and tool   
     # 3. Create a tool registry, register the memory tool
     tool_registry = ToolRegistry()
-    tool_registry.register_tool(memory_tool)
+    EphemeralMemory.configure_memory_tools(tool_registry)
 
-    # 4. Create an agent that uses this tool registry
-    agent = SimpleMemoryAgent(
+    config = AgentConfig(
         agent_name="memory_agent",
         agent_type="BaseAgent",
         description="A simple agent that stores conversation in MemoryTool.",
         tool_registry=tool_registry
     )
+    # 4. Create an agent that uses this tool registry
+    agent = SimpleMemoryAgent(config=config)
     agent.setup()
 
     # 5. Create an agent registry and register the agent

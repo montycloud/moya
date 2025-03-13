@@ -11,16 +11,24 @@ from moya.registry.agent_registry import AgentRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
-
+from moya.tools.base_tool import BaseTool, EphemeralMemoryTool
 
 def setup_memory_components():
     """Set up shared memory components."""
-    memory_repo = InMemoryRepository()
-    memory_tool = MemoryTool(memory_repository=memory_repo)
+   # memory_repo = InMemoryRepository()
+   # memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
-    tool_registry.register_tool(memory_tool)
+    EphemeralMemoryTool(memory_repository=InMemoryRepository())
+    tool_registry.register_tool(BaseTool(name="ReverseTool", function=reverse_text_tool))
     return tool_registry
 
+def reverse_text_tool(text: str) -> str:
+    """Tool to reverse characters in a given text input.
+    
+    Parameters:
+        - text: Text to echo
+    """
+    return text[::-1]
 
 def create_initial_classifier() -> OpenAIAgent:
     """Create the initial classifier with basic routing."""
@@ -38,7 +46,7 @@ def create_initial_classifier() -> OpenAIAgent:
         description="Dynamic message router",
         system_prompt=system_prompt,
         model_name="gpt-4o",
-        tool_registry=setup_memory_components(),
+       # tool_registry=setup_memory_components(),
         api_key=os.getenv("OPENAI_API_KEY")
     )
     agent = OpenAIAgent(config=classifier_config)    
@@ -103,14 +111,17 @@ def main():
     # Set up initial components
     tool_registry = setup_memory_components()
     registry = AgentRegistry()
+
+    print("Tools :",tool_registry.get_tools())
     
     config = OpenAIAgentConfig(
         agent_name="english_agent",
         agent_type="OpenAIAgent",
         description="Default English language agent",
-        system_prompt="You are a helpful assistant that responds in English.",
+        system_prompt="You are a helpful assistant that responds in English. You have access to the following tools, use them to complete your response if needed.",
         model_name="gpt-4o",
         tool_registry=tool_registry,
+        tool_choice="auto",
         api_key=os.getenv("OPENAI_API_KEY")
     )
 
@@ -150,6 +161,10 @@ def main():
             print("\nGoodbye!")
             break
 
+        if user_message.lower() == 'tool':
+            english_agent.handle_message("Call memory tool")
+            continue
+        
         # Check if this is a request to create a new agent
         if user_message.lower().startswith('create new agent'):
             new_agent = create_new_agent(tool_registry, agents_info)
