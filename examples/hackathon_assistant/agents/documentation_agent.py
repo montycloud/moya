@@ -130,3 +130,23 @@ RESPONSE REQUIREMENTS:
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
             return f"Error accessing documentation: {str(e)}"
+        
+    def handle_documentation_query(self, message: str, **kwargs):
+        """
+        Calls OpenAI ChatCompletion to handle the user's message with streaming support.
+        """
+        # Starting streaming response from OpenAIAgent
+        try:
+            # Get documents from the KnowledgeBaseTool
+            documents = self.call_tool(
+                tool_name="KnowledgeBaseTool",
+                method_name="search_docs",
+                query=message
+            )
+            self.system_prompt = self.system_prompt + "\n" + "Here are the documents to refer: \n" + str(documents)
+            for chunk in self.handle_message_stream(message):
+                yield chunk
+        except Exception as e:
+            error_message = f"[OpenAIAgent error: {str(e)}]"
+            print(error_message)
+            yield error_message

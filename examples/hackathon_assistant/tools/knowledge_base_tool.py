@@ -1,12 +1,15 @@
 import logging
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict, Set
+from typing import List, Tuple, Dict, Set
 from dataclasses import dataclass
-import chromadb
-from chromadb.config import Settings
 import re
-from moya.tools.base_tool import BaseTool
 
+from langchain_chroma import Chroma
+from moya.tools.base_tool import BaseTool
+from langchain_aws import BedrockEmbeddings
+from langchain_core.documents import Document
+
+embeddings = BedrockEmbeddings()
 logger = logging.getLogger(__name__)
 
 
@@ -49,19 +52,14 @@ class KnowledgeBaseTool(BaseTool):
 
         # Initialize ChromaDB with better error handling
         try:
-            self.chroma_client = chromadb.Client(Settings(
-                persist_directory=str(self.docs_path / ".chroma"),
-                anonymized_telemetry=False
-            ))
-
-            # Create or get collection
-            self.collection = self.chroma_client.get_or_create_collection(
-                name="moya_docs",
-                metadata={"hnsw:space": "cosine"}
+            self.vector_store = Chroma(
+                collection_name="moya_docs",
+                embedding_function=embeddings,
+                persist_directory="/workspaces/moya/examples/hackathon_assistant/tools/chroma_langchain_db",  # Where the data is stored locally
             )
 
             # Initialize documents
-            self._load_docs()
+            # self._load_docs()
             
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB: {e}")
@@ -335,46 +333,18 @@ class KnowledgeBaseTool(BaseTool):
 
         return "\n\n".join(response)
 
-    def search_docs(self, query: str) -> List[Tuple[str, str]]:
+    def search_docs(self, query: str):
         """Enhanced semantic search with better code block handling."""
         try:
-            # Add code-related terms for better matching
-            if 'example' in query.lower() or 'code' in query.lower():
-                query = f"{query} implementation code_block example"
             
-            results = self.collection.query(
-                query_texts=[query],
-                n_results=15,  # Increased for better coverage
-                include=["documents", "metadatas"]
-            )
+            docs = self.vector_store.similarity_search(query, k=5)
+            all_results = []
+            for res in docs:
+                all_results.append(res.page_content)
             
-            all_results: List[SearchResult] = []
-            seen_codes = set()  # Track unique code examples
-            
-            for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
-                # Extract code blocks from metadata
-                code_examples = metadata.get('code_blocks', []) if metadata.get('has_code') else []
-                
-                # Filter duplicate code examples
-                unique_codes = []
-                for code in code_examples:
-                    code_hash = hash(code.strip())
-                    if code_hash not in seen_codes:
-                        seen_codes.add(code_hash)
-                        unique_codes.append(code)
-                
-                result = SearchResult(
-                    title=metadata['title'],
-                    content=doc,
-                    code_examples=unique_codes,
-                    source_doc=metadata['source_doc'],
-                    relevance=1.0,
-                    section_type=metadata['content_type']
-                )
-                all_results.append(result)
-            
-            response = self.format_structured_response(all_results)
-            return [("Combined Results", response)]
+            print("Documents fetched", all_results)
+
+            return "\n".join(all_results)
             
         except Exception as e:
             logger.error(f"Error during semantic search: {e}")

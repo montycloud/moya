@@ -6,11 +6,11 @@ import logging
 import asyncio
 from pathlib import Path
 from typing import AsyncGenerator
+from hackathon_assistant.agents.documentation_agent import DocumentationAgent
+from hackathon_assistant.tools.knowledge_base_tool import KnowledgeBaseTool
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.memory_tool import MemoryTool
 from moya.tools.tool_registry import ToolRegistry
-from examples.hackathon_assistant.agents.documentation_agent import DocumentationAgent
-from examples.hackathon_assistant.tools.knowledge_base_tool import KnowledgeBaseTool
 import uuid
 
 # Configure logging
@@ -93,11 +93,11 @@ async def get_starter_prompts():
 @app.get("/chat/stream")
 async def chat_stream(message: str, request: Request) -> EventSourceResponse:
     """Stream chat responses."""
-    logger.debug(f"Received streaming request: {message}")
+    logger.info(f"Received streaming request: {message}")
     
     async def event_generator() -> AsyncGenerator:
         try:
-            for chunk in agent.handle_message_stream(message):
+            for chunk in agent.handle_documentation_query(message):
                 if await request.is_disconnected():
                     logger.debug("Client disconnected")
                     break
