@@ -1,10 +1,12 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
-import asyncio
 import json
 import logging
+import asyncio
 from pathlib import Path
+from typing import AsyncGenerator
+
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.memory_tool import MemoryTool
 from moya.tools.tool_registry import ToolRegistry
@@ -16,16 +18,23 @@ import uuid
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Initialize components with error handling
+# Set up documentation path
+DOCS_PATH = Path(__file__).parent.parent / "data" / "documentation"
+logger.info(f"Loading documentation from: {DOCS_PATH}")
+
+# Initialize components
 try:
     memory_repo = InMemoryRepository()
     memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
     tool_registry.register_tool(memory_tool)
 
-    # Set up knowledge base
-    docs_path = "examples/hackathon_assistant/data/documentation"
-    knowledge_tool = KnowledgeBaseTool(docs_path=docs_path)
+    # Set up knowledge base with proper initialization
+    knowledge_tool = KnowledgeBaseTool(
+        name="KnowledgeBaseTool",
+        description="Tool for searching Moya documentation",
+        docs_path=str(DOCS_PATH)
+    )
     tool_registry.register_tool(knowledge_tool)
 
     # Initialize agent
@@ -36,16 +45,12 @@ except Exception as e:
     logger.error(f"Failed to initialize components: {e}")
     raise
 
-# Initialize knowledge base
-DOCS_PATH = Path(__file__).parent.parent / "data" / "documentation"
-logger.info(f"Loading documentation from: {DOCS_PATH}")
-
 app = FastAPI()
 
-# CORS configuration
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"],
+    allow_origins=["http://localhost:8080"],  # Frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -91,49 +96,28 @@ async def chat_stream(message: str, request: Request) -> EventSourceResponse:
     """Stream chat responses."""
     logger.debug(f"Received streaming request: {message}")
     
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator:
         try:
-            # First search relevant documentation
-            docs = knowledge_tool.search_docs(message)
-            context = ""
-            if docs:
-                context = "\n\nRelevant documentation:\n"
-                for name, content in docs:
-                    context += f"\n--- {name} ---\n{content}\n"
-                logger.debug(f"Found documentation context: {context}")
-
-            # Enhance prompt with context
-            enhanced_message = f"{context}\n\nUser query: {message}\nRemember to cite documentation when possible."
-            logger.debug(f"Enhanced message: {enhanced_message}")
-
-            # Stream response
-            for chunk in agent.handle_message_stream(enhanced_message):
+            for chunk in agent.handle_message_stream(message):
                 if await request.is_disconnected():
                     logger.debug("Client disconnected")
                     break
-
-                logger.debug(f"Sending chunk: {chunk}")
+                
                 yield {
                     "event": "message",
-                    "data": json.dumps({"content": chunk})
+                    "data": json.dumps({"content": chunk}),
+                    "retry": 1000
                 }
-                await asyncio.sleep(0.05)  # Reduced delay
-
+                await asyncio.sleep(0.1)
+                
         except Exception as e:
             logger.error(f"Error in stream: {str(e)}")
             yield {
                 "event": "error",
                 "data": json.dumps({"error": str(e)})
             }
-
-    return EventSourceResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-    )
+    
+    return EventSourceResponse(event_generator())
 
 @app.get("/health")
 async def health_check():
