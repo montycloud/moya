@@ -12,6 +12,7 @@ from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.tools.ephemeral_memory import EphemeralMemory
 import os
 import sys
+import logging
 
 def setup_agent():
     # Set up memory components
@@ -24,7 +25,10 @@ def setup_agent():
         api_key=os.getenv("OPENAI_API_KEY"),
         model_name="gpt-4o",
         agent_type="ChatAgent",
-        tool_registry=tool_registry
+        tool_registry=tool_registry,
+        system_prompt="You are an interactive chat agent that can remember previous conversations. "
+                    "You have access to tools that helps you to store and retrieve conversation history. "
+                    "Always begin with storing the message in memory and fetch the conversation summary before generating final response."
     )
 
     # Create OpenAI agent with memory capabilities
@@ -51,6 +55,7 @@ def format_conversation_context(messages):
 
 
 def main():
+    # logging.basicConfig(level=logging.INFO) # Set logging level to INFO
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
 
@@ -76,10 +81,10 @@ def main():
         # Get response using stream_callback
         response = orchestrator.orchestrate(
             thread_id=thread_id,
-            user_message=user_input,
-            stream_callback=stream_callback
+            user_message=user_input
+            # stream_callback=stream_callback
         )
-
+        print(response)
         # Print newline after response
         print()
 

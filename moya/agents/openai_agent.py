@@ -19,7 +19,6 @@ from moya.tools.tool_registry import ToolRegistry
 from moya.memory.base_repository import BaseMemoryRepository
 import logging
 
-logging.basicConfig(level=logging.INFO) # Set logging level to INFO
 @dataclass
 class OpenAIAgentConfig(AgentConfig):
     """
@@ -111,14 +110,14 @@ class OpenAIAgent(Agent):
         Returns:
             str: Final response after tool call processing.
         """
-        logging.info("Starting chat with user message: %s", user_message)
+        logging.debug("Starting chat with user message: %s", user_message)
         conversation = [{"role": "user", "content": user_message}]
         iteration = 0
 
         while iteration < self.max_iterations:
-            logging.info("Iteration %d: requesting response", iteration)
+            logging.debug("Iteration %d: requesting response", iteration)
             message = self.get_response(conversation)
-            logging.info("Received message: %s", message)
+            logging.debug("Received message: %s", message)
             
             # Extract message content
             if isinstance(message, dict):
@@ -140,9 +139,9 @@ class OpenAIAgent(Agent):
             # Process tool calls if any
             if tool_calls:
                 for tool_call in tool_calls:
-                    logging.info("Detected tool call: %s", tool_call)
+                    logging.debug("Detected tool call: %s", tool_call)
                     tool_response = self.handle_tool_call(tool_call)
-                    logging.info("Tool response: %s", tool_response)
+                    logging.debug("Tool response: %s", tool_response)
                     
                     conversation.append({
                             "role": "tool",
@@ -154,7 +153,7 @@ class OpenAIAgent(Agent):
                 break
 
         final_message = conversation[-1].get("content", "")
-        logging.info("Final output: %s", final_message)
+        logging.debug("Final output: %s", final_message)
         return final_message
 
     def get_response(self, conversation):
@@ -167,7 +166,7 @@ class OpenAIAgent(Agent):
         Returns:
             dict: Message from the assistant, which may include 'tool_calls'.
         """
-        logging.info("Requesting response for conversation: %s", conversation)
+        logging.debug("Requesting response for conversation: %s", conversation)
         
         if self.is_streaming:
             response = self.client.chat.completions.create(
@@ -239,7 +238,7 @@ class OpenAIAgent(Agent):
                 else:
                     result["tool_calls"] = [message.tool_calls.dict()]
                     
-            logging.info("Obtained response message: %s", message)
+            logging.debug("Obtained response message: %s", message)
             return result
 
     def handle_tool_call(self, tool_call):
@@ -263,13 +262,13 @@ class OpenAIAgent(Agent):
         except json.JSONDecodeError:
             args = {}
             
-        logging.info("Handling tool '%s' with arguments: %s", name, args)
+        logging.debug("Handling tool '%s' with arguments: %s", name, args)
 
         tool = self.tool_registry.get_tool(name)
         if tool:
             result = tool.function(**args)
-            logging.info("Tool execution result: %s", result)
+            logging.debug("Tool execution result: %s", result)
             return result
 
-        logging.info("Tool '%s' not found in registry", name)
+        logging.debug("Tool '%s' not found in registry", name)
         return f"[Tool '{name}' not found]"
