@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorials - Moya Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+    <link rel="icon" href="https://montycloud.com/hubfs/icon-for-favicon-1.png" type="image/png">
+</head>
+
+<body>
+    <header>
+        <h1>Moya Documentation</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="quickstart.html">Quickstart</a></li>
+                <li><a href="guides.html">Guides</a></li>
+                <li><a href="explanations.html">Explanations</a></li>
+                <li><a href="tutorials.html">Tutorials</a></li>
+                <li><a href="reference.html">Reference</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Tutorials</h3>
+            <ul>
+                <li><a href="tutorials-simple.html">Simple Agent</a></li>
+                <li><a href="tutorials-multi.html">Multi-Agent System</a></li>
+                <li><a href="tutorials-dynamic.html">Dynamic Agents</a></li>
+                <li><a href="tutorials-remote.html">Remote Agent</a></li>
+                <li><a href="tutorials-ollama.html">Ollama Integration</a></li>
+            </ul>
+        </aside>
+
+        <main>
+            <h2>Tutorials</h2>
+
+            <h3 id="multi-agent">Creating a Multi-Agent System</h3>
+            <p>In this tutorial, we'll build a system with multiple specialized agents, a classifier to route messages
+                to the appropriate agent, and memory management for conversation history.</p>
+
+            <h4>Step 1: Set Up the Project Structure</h4>
+            <p>Create a new Python file called <code>multi_agent_system.py</code>. Import all necessary packages,
+                including agents, memory tools, and orchestrators.</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py</span>
+                </div>
+                <pre><code class="language-python">"""
+A multi-agent system with specialized agents, a classifier, and memory support.
+"""
+
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.agents.remote_agent import RemoteAgent, RemoteAgentConfig
+from moya.classifiers.llm_classifier import LLMClassifier
+from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
+from moya.registry.agent_registry import AgentRegistry
+from moya.tools.memory_tool import MemoryTool
+from moya.memory.in_memory_repository import InMemoryRepository
+from moya.tools.tool_registry import ToolRegistry</code></pre>
+            </div>
+
+            <h4>Step 2: Set Up Shared Components</h4>
+            <p>Set up a memory repository and a tool registry to manage conversation history:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def setup_memory_components():
+    """Set up memory components for the agents."""
+    memory_repo = InMemoryRepository()
+    memory_tool = MemoryTool(memory_repository=memory_repo)
+    tool_registry = ToolRegistry()
+    tool_registry.register_tool(memory_tool)
+    return tool_registry</code></pre>
+            </div>
+
+            <h4>Step 3: Create Specialized Agents</h4>
+            <p>Define agents with distinct behaviors and language preferences:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def create_english_agent(tool_registry):
+    """Create an English-speaking OpenAI agent."""
+    agent_config = OpenAIAgentConfig(
+        system_prompt="""You are a helpful AI assistant that always responds in English.
+        You should be polite, informative, and maintain a professional tone.""",
+        model_name="gpt-4o",
+        temperature=0.7
+    )
+
+    agent = OpenAIAgent(
+        agent_name="english_agent",
+        description="English language specialist",
+        config=None,
+        tool_registry=tool_registry,
+        agent_config=agent_config
+    )
+    agent.setup()
+    return agent</code></pre>
+            </div>
+
+            <p>Similarly, create a Spanish-speaking agent and a remote joke agent:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def create_spanish_agent(tool_registry):
+    """Create a Spanish-speaking OpenAI agent."""
+    # Similar implementation as the English agent with Spanish-specific configurations
+
+def create_remote_agent(tool_registry):
+    """Create a remote agent for joke-related queries."""
+    # Implementation for connecting to a remote service for jokes</code></pre>
+            </div>
+
+
+            <h4>Step 4: Implement a Classifier Agent</h4>
+            <p>Define a classifier to route messages to the appropriate agent:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def create_classifier_agent():
+    """Create a classifier agent for language and task detection."""
+    agent_config = OpenAIAgentConfig(
+        system_prompt="""You are a classifier. Your job is to determine the best agent based on the user's message:
+        1. If the message requests or implies a need for a joke, return 'joke_agent'
+        2. If the message is in English or requests English response, return 'english_agent'
+        3. If the message is in Spanish or requests Spanish response, return 'spanish_agent'
+        4. For any other language requests, return null""",
+        model_name="gpt-4o"
+    )
+
+    agent = OpenAIAgent(
+        agent_name="classifier",
+        description="Language and task classifier for routing messages",
+        config=None,
+        tool_registry=None,
+        agent_config=agent_config
+    )
+    agent.setup()
+    return agent</code></pre>
+            </div>
+
+            <h4>Step 5: Set Up the Orchestrator</h4>
+            <p>Combine agents and memory tools into a multi-agent orchestrator:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def setup_orchestrator():
+    """Set up the multi-agent orchestrator with all components."""
+    # Set up shared components
+    tool_registry = setup_memory_components()
+
+    # Create agents
+    english_agent = create_english_agent(tool_registry)
+    spanish_agent = create_spanish_agent(tool_registry)
+    joke_agent = create_remote_agent(tool_registry)
+    classifier_agent = create_classifier_agent()
+
+    # Set up agent registry
+    registry = AgentRegistry()
+    registry.register_agent(english_agent)
+    registry.register_agent(spanish_agent)
+    registry.register_agent(joke_agent)
+
+    # Create and configure the classifier
+    classifier = LLMClassifier(classifier_agent, default_agent="english_agent")
+
+    # Create the orchestrator
+    orchestrator = MultiAgentOrchestrator(
+        agent_registry=registry,
+        classifier=classifier,
+        default_agent_name=None
+    )
+
+    return orchestrator</code></pre>
+            </div>
+
+            <h4>Step 6: Implement the Main Function</h4>
+            <p>Create an interactive chat function with memory support:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>multi_agent_system.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def main():
+    # Set up the orchestrator and all components
+    orchestrator = setup_orchestrator()
+    thread_id = "test_conversation"
+
+    print("Starting multi-agent chat (type 'exit' to quit)")
+    print("You can chat in English or Spanish, or request responses in either language.")
+    print("-" * 50)
+
+    def stream_callback(chunk):
+        print(chunk, end="", flush=True)
+
+    while True:
+        # Get user input
+        user_message = input("\nYou: ").strip()
+
+        # Check for exit condition
+        if user_message.lower() == 'exit':
+            print("\nGoodbye!")
+            break
+
+        # Get available agents
+        agents = orchestrator.agent_registry.list_agents()
+        if not agents:
+            print("\nNo agents available!")
+            continue
+
+        # Get the last used agent or default to the first one
+        last_agent = orchestrator.agent_registry.get_agent(agents[0].name)
+
+        # Store the user message first
+        if last_agent.tool_registry:
+            try:
+                last_agent.call_tool(
+                    tool_name="MemoryTool",
+                    method_name="store_message",
+                    thread_id=thread_id,
+                    sender="user",
+                    content=user_message
+                )
+            except Exception as e:
+                print(f"Error storing user message: {e}")
+
+        # Get conversation context
+        previous_messages = last_agent.get_last_n_messages(thread_id, n=5)
+
+        # Add context to the user's message if there are previous messages
+        if previous_messages:
+            context = format_conversation_context(previous_messages)
+            enhanced_input = f"{context}\nCurrent user message: {user_message}"
+        else:
+            enhanced_input = user_message
+
+        # Print Assistant prompt and get response
+        print("\nAssistant: ", end="", flush=True)
+        response = orchestrator.orchestrate(
+            thread_id=thread_id,
+            user_message=enhanced_input,
+            stream_callback=stream_callback
+        )
+        print()  # New line after response
+
+
+if __name__ == "__main__":
+    main()
+</code></pre>
+            </div>
+
+
+            <h4>Step 7: Run the System</h4>
+            <p>Set your OpenAI API key and run the script:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>Terminal</span>
+                </div>
+                <pre><code class="language-bash">export OPENAI_API_KEY=your_api_key_here
+python multi_agent_system.py</code></pre>
+            </div>
+
+            <p>The system supports English and Spanish chats, remembers conversation history, and routes jokes to a
+                dedicated agent!</p>
+
+            <div class="note">
+                <strong>Note:</strong> This example is similar to the <code>quick_start_multiagent.py</code> example
+                included in the Moya repository. You can run that example directly with
+                <code>python examples/quick_start_multiagent.py</code>.
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>

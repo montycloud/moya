@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorials - Moya Documentation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+    <link rel="icon" href="https://montycloud.com/hubfs/icon-for-favicon-1.png" type="image/png">
+</head>
+
+<body>
+    <header>
+        <h1>Moya Documentation</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="quickstart.html">Quickstart</a></li>
+                <li><a href="guides.html">Guides</a></li>
+                <li><a href="explanations.html">Explanations</a></li>
+                <li><a href="tutorials.html">Tutorials</a></li>
+                <li><a href="reference.html">Reference</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Tutorials</h3>
+            <ul>
+                <li><a href="tutorials-simple.html">Simple Agent</a></li>
+                <li><a href="tutorials-multi.html">Multi-Agent System</a></li>
+                <li><a href="tutorials-dynamic.html">Dynamic Agents</a></li>
+                <li><a href="tutorials-remote.html">Remote Agent</a></li>
+                <li><a href="tutorials-ollama.html">Ollama Integration</a></li>
+            </ul>
+        </aside>
+
+        <main>
+            <h2>Tutorials</h2>
+
+            <h3 id="remote-agent">Deploying a Remote Agent Server</h3>
+            <p>In this tutorial, we'll deploy a remote agent using a FastAPI server.</p>
+
+            <h4>Step 1: Set Up the Project Structure</h4>
+            <p>Create a new Python file called <code>remote_agent_server.py</code> and import all required packages:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>remote_agent_server.py</span>
+                </div>
+                <pre><code class="language-python">"""
+A remote agent server using Moya.
+"""
+
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.memory.in_memory_repository import InMemoryRepository
+from moya.tools.tool_registry import ToolRegistry
+from moya.tools.memory_tool import MemoryTool
+
+import asyncio
+import uvicorn
+
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import StreamingResponse
+</code></pre>
+            </div>
+
+            <h4>Step 2: Set Up an Agent</h4>
+            <p>Next, we'll set up an OpenAI Agent that can answer queries:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>remote_agent_server.py (continued)</span>
+                </div>
+                <pre><code class="language-python">def setup_agent():
+    """Set up OpenAI agent with memory capabilities."""
+    # Set up memory components
+    memory_repo = InMemoryRepository()
+    memory_tool = MemoryTool(memory_repository=memory_repo)
+    tool_registry = ToolRegistry()
+    tool_registry.register_tool(memory_tool)
+
+    # Create and setup agent
+    agent_config = OpenAIAgentConfig(
+        system_prompt="You are a remote agent that specializes in telling jokes and being entertaining.",
+        model_name="gpt-4o",
+        temperature=0.8,
+        max_tokens=1000
+    )
+
+    agent = OpenAIAgent(
+        agent_name="remote_joke_agent",
+        description="Remote agent specialized in humor",
+        agent_config=agent_config,
+        tool_registry=tool_registry
+    )
+    agent.setup()
+    return agent
+
+
+# Initialize agent at startup
+agent = setup_agent()
+</code></pre>
+            </div>
+
+            <h4>Step 3: Create endpoints to interact with</h4>
+            <p>We create endpoints such as <code>health</code> and <code>chat</code>:</p>
+            <p>The <code>health</code> endpoint is used to check if the server is running properly. The
+                <code>chat</code>
+                endpoint is used to interact with the agent.
+            </p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>remote_agent_server.py (continued)</span>
+                </div>
+                <pre><code class="language-python">@app.get("/health")
+    async def health_check():
+        """Health check endpoint."""
+        return {"status": "healthy", "agent": agent.agent_name}
+
+@app.post("/chat")
+async def chat(request: Request):
+    """Handle normal chat requests using OpenAI agent."""
+    data = await request.json()
+    message = data['message']
+    thread_id = data.get('thread_id', 'default_thread')
+
+    # Store user message if memory tool is available
+    if agent.tool_registry:
+        try:
+            agent.call_tool(
+                tool_name="MemoryTool",
+                method_name="store_message",
+                thread_id=thread_id,
+                sender="user",
+                content=message
+            )
+        except Exception as e:
+            print(f"Error storing user message: {e}")
+
+    # Get response from agent
+    response = agent.handle_message(message, thread_id=thread_id)
+
+    # Store agent response if memory tool is available
+    if agent.tool_registry:
+        try:
+            agent.call_tool(
+                tool_name="MemoryTool",
+                method_name="store_message",
+                thread_id=thread_id,
+                sender=agent.agent_name,
+                content=response
+            )
+        except Exception as e:
+            print(f"Error storing agent response: {e}")
+
+    return {"response": response}
+</code></pre>
+            </div>
+
+            <h4>Step 4: Start the uvicorn server</h4>
+            <p>Now, let's start the FastAPI server using uvicorn:</p>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span>remote_agent_server.py (continued)</span>
+                </div>
+                <pre><code class="language-python">if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+</code></pre>
+            </div>
+
+            <p>You should now be able to chat with your agent on the url <code>localhost:8000/chat</code></p>
+
+            <div class="note">
+                <strong>Note:</strong> This example is similar to the <code>remote_agent_server.py</code> example
+                included in the Moya repository. You can run that example directly with
+                <code>python examples/remote_agent_server.py</code>.
+            </div>
+
+        </main>
+    </div>
+</body>
+
+</html>
