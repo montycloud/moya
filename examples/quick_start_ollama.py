@@ -26,7 +26,7 @@ def setup_agent():
     # Create Ollama agent with memory capabilities and correct configuration
     agent_config = OllamaAgentConfig(
         system_prompt="You are a helpful AI assistant. Be concise and clear.",
-        model_name="llama2",
+        model_name="llama3.1",
         temperature=0.7,
         base_url="http://localhost:11434",
         context_window=4096
