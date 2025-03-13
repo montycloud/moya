@@ -12,6 +12,12 @@ from moya.agents.azure_openai_agent import AzureOpenAIAgent, AzureOpenAIAgentCon
 
 
 def setup_agent():
+    """
+    Set up the OpenAI agent with memory capabilities and return the orchestrator and agent.
+
+    Returns:
+        tuple: A tuple containing the orchestrator and the agent.
+    """
     # Set up memory components
     memory_repo = InMemoryRepository()
     memory_tool = MemoryTool(memory_repository=memory_repo)
@@ -50,6 +56,15 @@ def setup_agent():
 
 
 def format_conversation_context(messages):
+    """
+    Format the conversation context from a list of messages.
+
+    Args:
+        messages (list): A list of message objects.
+
+    Returns:
+        str: A formatted string representing the conversation context.
+    """
     context = "\nPrevious conversation:\n"
     for msg in messages:
         # Access Message object attributes properly using dot notation
@@ -59,6 +74,9 @@ def format_conversation_context(messages):
 
 
 def main():
+    """
+    Main function to run the interactive chat example.
+    """
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
 
@@ -98,6 +116,12 @@ def main():
 
         # Define callback for streaming
         def stream_callback(chunk):
+            """
+            Callback function to handle streaming response chunks.
+
+            Args:
+                chunk (str): A chunk of the response.
+            """
             print(chunk, end="", flush=True)
 
         # Get response using stream_callback
