@@ -5,65 +5,78 @@ Describes a generic interface for a "tool" that an agent can discover and call.
 """
 
 import abc
-from typing import Any, Callable, Dict, List, Optional, Union
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, get_type_hints
 
+@dataclass
+class BaseTool():
+    name: str
+    description: Optional[str] = None
+    function: Optional[Callable] = None
+    parameters: Optional[Dict[str, Dict[str, Any]]] = None
+    required: Optional[List[str]] = None
 
-class BaseTool(abc.ABC):
-    """
-    Abstract base class for all Moya tools.
-    Tools are callable utilities that agents can invoke (e.g., MemoryTool, WebSearchTool).
-    """
-
-    def __init__(
-        self, 
-        name: str, 
-        description: str, 
-        function: Optional[Callable] = None,
-        parameters: Optional[Dict[str, Dict[str, Any]]] = None
-    ):
-        """
-        :param name: Unique name for the tool (e.g., 'MemoryTool').
-        :param description: Short explanation of the tool's functionality.
-        :param function: Callable that implements the tool's logic.
-        :param parameters: Dictionary of parameters the function expects.
-            Format: {
-                "param_name": {
-                    "type": "string|integer|number|boolean|object|array",
-                    "description": "Parameter description",
-                    "required": True|False
-                }
-            }
-        """
-        self._name = name
-        self._description = description
-        self._function = function
+    def __post_init__(self):
+        if self.function is None:
+            raise ValueError("Function is required for a tool: ", self.name)
         
-        # Validate parameters format if provided
-        if parameters is not None:
-            self._validate_parameters(parameters)
-        self._parameters = parameters or {}
+        # Use function docstring to extract optional parameters if not provided
+        # This is the standard docstring format for Python functions:
+        #     def my_function(param1: str, param2: int) -> str:
+        #         """
+        #         My function description.
+        #
+        #         Parameters:
+        #         - param1: Description of param1. 
+        #         - param2: Description of param2.
+        #
+        #         Returns:
+        #         - Description of the return value.
+        #         """
+        docstring = self.function.__doc__ or ""
 
-    @property
-    def name(self) -> str:
-        """
-        Returns the name of the tool.
-        """
-        return self._name
-    
-    @property
-    def description(self) -> str:
-        """
-        Returns the description of the tool.
-        """
-        return self._description   
-    
-    @property
-    def parameters(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Returns the parameters of the tool.
-        """
-        return self._parameters
-    
+        if self.description is None:
+            self.description = docstring.split("\n\n")[0].strip()
+
+        json_type_map = {
+            str: "string",
+            int: "integer",
+            float: "number",
+            bool: "boolean",
+            dict: "object",
+            list: "array",
+            Any: "string"
+        }
+        
+        if self.parameters is None:
+            self.parameters = {}
+            for line in docstring.split("\n"):
+                if line.strip().startswith("- "):
+                    parts = line.strip().split(":")
+                    if len(parts) == 2:
+                        param_name, param_desc = parts
+                        param_name = param_name.strip().replace("- ", "")
+                        if param_name and param_name == "self":
+                            continue
+
+                        if "Optional" in param_name:
+                            # Remove "Optional" from parameter name
+                            param_name = param_name.replace("Optional", "").strip()
+                    
+                        param_desc = param_desc.strip()
+                        param_type = get_type_hints(self.function).get(param_name, Any)
+                        param_json_type = json_type_map.get(param_type, "string")
+
+                        self.parameters[param_name] = {
+                            "type": param_json_type,
+                            "description": param_desc
+                        }
+        else:
+        # Validate parameters format if provided
+            self._validate_parameters(self.parameters)
+        
+        print(f"Tool {self.name} initialized with description: {self.description}"
+              f" and parameters: {self.parameters}")
 
 
     def _validate_parameters(self, parameters: Dict[str, Dict[str, Any]]) -> None:
@@ -87,6 +100,8 @@ class BaseTool(abc.ABC):
             if param_info["type"] not in valid_types:
                 raise ValueError(f"Parameter {param_name} has invalid type. Must be one of: {', '.join(valid_types)}")
 
+
+    
     def get_bedrock_definition(self) -> Dict[str, Any]:
         """
         Returns the tool definition in a format compatible with Bedrock.
