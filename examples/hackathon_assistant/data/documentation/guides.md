@@ -103,103 +103,84 @@ response = orchestrator.orchestrate(
 ```python
 from moya.tools import BaseTool
 
-class DataAnalysisTool(BaseTool):
-    def __init__(self):
+class CustomIntegrationTool(BaseTool):
+    def __init__(self, config: dict):
         super().__init__(
-            name="DataAnalysisTool",
-            description="Performs data analysis tasks"
+            name="CustomIntegrationTool",
+            description="Integrates with external services"
         )
+        self.config = config
     
-    def analyze_data(self, data: list) -> dict:
-        # Implement analysis logic
-        return {"result": "analysis_output"}
+    def execute_operation(self, operation: str, **kwargs) -> dict:
+        # Implement your custom integration logic
+        return {"status": "success", "result": "operation_output"}
 ```
 
 2. Register and use:
 ```python
-tool = DataAnalysisTool()
+tool = CustomIntegrationTool(config={
+    "endpoint": "your_service_endpoint",
+    "auth_token": "your_auth_token"
+})
 tool_registry.register_tool(tool)
 
 result = agent.call_tool(
-    tool_name="DataAnalysisTool",
-    method_name="analyze_data",
-    data=[1, 2, 3]
+    tool_name="CustomIntegrationTool",
+    method_name="execute_operation",
+    operation="custom_action",
+    **kwargs
 )
 ```
 
-### Working with Remote Agents
+### Integration Patterns
 
-1. Set up server:
+#### Service Integration Example
 ```python
-from fastapi import FastAPI, HTTPException
-from moya.agents import RemoteAgent
+from moya.agents import OpenAIAgent
+from moya.tools import BaseIntegrationTool
 
-app = FastAPI()
-agent = RemoteAgent(...)
+# Create a service-specific tool
+class ServiceTool(BaseIntegrationTool):
+    def __init__(self, service_config: dict):
+        super().__init__(
+            name="ServiceTool",
+            description="Integrates with external service"
+        )
+        self.config = service_config
+        
+    def connect(self):
+        # Implement service connection
+        pass
+        
+    def execute(self, action: str, params: dict):
+        # Implement service interaction
+        pass
 
-@app.post("/chat")
-async def chat(message: dict):
-    try:
-        response = agent.handle_message(message["content"])
-        return {"response": response}
-    except Exception as e:
-        raise HTTPException(status_code=500, str(e))
-```
-
-2. Client usage:
-```python
-from moya.agents import RemoteAgent
-
-agent = RemoteAgent(
-    agent_name="remote_assistant",
-    api_url="http://localhost:8000/chat",
-    api_key="your-key"
-)
-
-response = agent.handle_message("Hello!")
-```
-
-## CloudOps Integration
-
-### AWS Resource Management
-```python
-from moya.tools import CloudOpsTool
-from moya.agents import BedrockAgent
-
-# Set up cloud tool
-cloud_tool = CloudOpsTool(aws_profile="prod")
-tool_registry.register_tool(cloud_tool)
-
-# Create cloud-aware agent
-agent = BedrockAgent(
-    agent_name="cloud_ops",
-    description="AWS resource manager",
+# Use with any agent
+agent = OpenAIAgent(
+    agent_name="service_agent",
+    description="Service integration agent",
     tool_registry=tool_registry
 )
-
-# Manage resources
-response = agent.handle_message("Check EC2 instance health in us-east-1")
 ```
 
-### Multi-Cloud Orchestration
+#### Distributed System Pattern
 ```python
-# Create cloud-specific agents
-aws_agent = BedrockAgent(name="aws_ops")
-azure_agent = OpenAIAgent(name="azure_ops")
+from moya.orchestrators import MultiAgentOrchestrator
+from moya.registry import AgentRegistry
 
-# Set up orchestration
+# Set up distributed components
 registry = AgentRegistry()
-registry.register_agent(aws_agent)
-registry.register_agent(azure_agent)
+for service in services:
+    agent = OpenAIAgent(
+        agent_name=f"{service}_agent",
+        description=f"Handles {service} operations"
+    )
+    registry.register_agent(agent)
 
+# Orchestrate distributed operations
 orchestrator = MultiAgentOrchestrator(
     agent_registry=registry,
     classifier=classifier
-)
-
-# Handle multi-cloud operations
-response = orchestrator.orchestrate(
-    thread_id="cloud_ops",
-    user_message="Compare resource usage across AWS and Azure"
 )
 ```
