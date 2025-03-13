@@ -75,9 +75,6 @@ class BaseTool():
         else:
         # Validate parameters format if provided
             self._validate_parameters(self.parameters)
-        
-        logging.debug(f"Tool {self.name} initialized with description: {self.description}"
-              f" and parameters: {self.parameters}")
 
 
     def _validate_parameters(self, parameters: Dict[str, Dict[str, Any]]) -> None:

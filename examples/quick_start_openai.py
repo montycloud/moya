@@ -55,7 +55,6 @@ def format_conversation_context(messages):
 
 
 def main():
-    # logging.basicConfig(level=logging.INFO) # Set logging level to INFO
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
 
