@@ -1,92 +1,44 @@
 import logging
-import json
-from typing import List, Optional, Tuple, Dict
 from pathlib import Path
-from difflib import get_close_matches
+from typing import List, Tuple
 from moya.tools.base_tool import BaseTool
 
 logger = logging.getLogger(__name__)
 
 class KnowledgeBaseTool(BaseTool):
-    def __init__(
-        self,
-        docs_path: str,
-        name: str = "KnowledgeBaseTool",
-        description: str = "Access Moya framework documentation and knowledge base."
-    ):
-        super().__init__(name=name, description=description)
-        self.base_path = Path(docs_path)
-        self.docs_cache = {}
-        self.index = {}  # Search index for document contents
-        self.base_path.mkdir(parents=True, exist_ok=True)
-        self._initialize_docs()
+    """Tool for searching through Moya documentation."""
+    
+    def __init__(self, docs_path: str):
+        super().__init__(
+            name="KnowledgeBaseTool",
+            description="Tool for searching Moya documentation"
+        )
+        self.docs_path = Path(docs_path)
+        logger.info(f"Initialized KnowledgeBaseTool with path: {self.docs_path}")
+        self._load_docs()
 
-    def _initialize_docs(self) -> None:
-        """Load and index all markdown files."""
-        logger.info(f"Loading documentation from: {self.base_path}")
-        
-        loaded = 0
-        for file_path in self.base_path.rglob("*.md"):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                key = file_path.stem
-                self.docs_cache[key] = content
-                # Create search index by words
-                words = set(content.lower().split())
-                for word in words:
-                    if word not in self.index:
-                        self.index[word] = []
-                    self.index[word].append(key)
-                loaded += 1
-        
-        logger.info(f"Loaded and indexed {loaded} documentation files")
-        logger.debug(f"Available documents: {list(self.docs_cache.keys())}")
+    def _load_docs(self):
+        """Pre-load all documentation files."""
+        self.docs = {}
+        for file_path in self.docs_path.glob("*.md"):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    self.docs[file_path.name] = f.read()
+                logger.debug(f"Loaded documentation: {file_path.name}")
+            except Exception as e:
+                logger.error(f"Error loading {file_path}: {e}")
 
     def search_docs(self, query: str) -> List[Tuple[str, str]]:
-        """Enhanced search through documentation."""
+        """Search documentation for relevant content."""
+        query_terms = set(query.lower().split())
         results = []
-        query = query.lower().strip()
-        query_words = query.split()
         
-        logger.debug(f"Searching for query: {query}")
-        logger.debug(f"Query words: {query_words}")
+        for name, content in self.docs.items():
+            content_lower = content.lower()
+            # Simple relevance scoring
+            score = sum(1 for term in query_terms if term in content_lower)
+            if score > 0:
+                results.append((name, content))
+                logger.debug(f"Found relevant doc: {name} (score: {score})")
         
-        # Track matching scores for each document
-        doc_scores: Dict[str, int] = {}
-        
-        # Search through index
-        for word in query_words:
-            # Find similar words in index
-            matches = get_close_matches(word, self.index.keys(), n=3, cutoff=0.7)
-            for match in matches:
-                for doc_key in self.index[match]:
-                    doc_scores[doc_key] = doc_scores.get(doc_key, 0) + 1
-        
-        # Sort documents by score
-        matching_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
-        
-        # Add matching documents to results
-        for doc_key, score in matching_docs:
-            if doc_key in self.docs_cache:
-                results.append((doc_key, self.docs_cache[doc_key]))
-        
-        logger.info(f"Found {len(results)} relevant documents")
-        if len(results) == 0:
-            logger.warning("No matching documents found!")
-        else:
-            logger.debug(f"Matching docs: {[r[0] for r in results]}")
-            
-        return results
-
-    def get_document(self, name: str) -> Optional[str]:
-        """Retrieve a specific document by name."""
-        return self.docs_cache.get(name)
-
-    def list_documents(self) -> List[str]:
-        """List all available documentation files."""
-        return list(self.docs_cache.keys())
-
-    def refresh(self) -> None:
-        """Reload all documentation files."""
-        self.docs_cache.clear()
-        self._initialize_docs()
+        return sorted(results, key=lambda x: len(x[1]))[:3]  # Return top 3 most relevant
