@@ -80,7 +80,11 @@ class MultiAgentOrchestrator(BaseOrchestrator):
             stream_callback(agent_prefix)
             response = agent_prefix
             
-            for chunk in agent.handle_message_stream(user_message, thread_id=thread_id, **kwargs):
+            message_stream = agent.handle_message_stream(user_message, thread_id=thread_id, **kwargs)
+            if message_stream is None:
+                message_stream = []
+
+            for chunk in message_stream:
                 stream_callback(chunk)
                 response += chunk
         else:
