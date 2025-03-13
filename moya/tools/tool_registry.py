@@ -32,22 +32,15 @@ class ToolRegistry:
         """
         return self._tools.get(tool_name)
 
-    def get_tools(self, llm_provider: str) -> List[Dict[str, Any]]:
+    def get_tools(self) -> List[BaseTool]:
         """
         Returns the tool definition in a format compatible with the specified LLM provider.
         
         :param llm_provider: LLM provider name (e.g., 'openai', 'bedrock', 'ollama')
         :return: Tool definition as a dictionary
         """
-        if llm_provider == LLMProviders.OPENAI:
-            return [tool.get_tool_definition(LLMProviders.OPENAI) for tool in self._tools.values()]
-        elif llm_provider == LLMProviders.BEDROCK:
-            return [tool.get_tool_definition(LLMProviders.BEDROCK) for tool in self._tools.values()]   
-        elif llm_provider == LLMProviders.OLLAMA:
-            return [tool.get_tool_definition(LLMProviders.OLLAMA) for tool in self._tools.values()]
-        else:
-            raise ValueError(f"Unsupported LLM provider: {llm_provider}")
-        
+        return self._tools.values() or []
+    
     
     def handle_tool_call(self, llm_response: Any, llm_provider: str) -> Dict[str, Any]:
         """
