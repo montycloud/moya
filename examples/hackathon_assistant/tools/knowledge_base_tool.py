@@ -2,10 +2,13 @@ import logging
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Set
 from dataclasses import dataclass
+import chromadb
+from chromadb.config import Settings
 import re
 from moya.tools.base_tool import BaseTool
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class DocSection:
@@ -13,7 +16,8 @@ class DocSection:
     content: str
     level: int
     code_blocks: List[str]
-    
+
+
 @dataclass
 class DocumentContext:
     filename: str
@@ -21,6 +25,7 @@ class DocumentContext:
     sections: List[DocSection]
     keywords: Set[str]
     related_docs: Set[str]
+
 
 @dataclass
 class SearchResult:
@@ -31,6 +36,7 @@ class SearchResult:
     relevance: float
     section_type: str  # 'definition', 'example', 'guide', 'reference'
 
+
 class KnowledgeBaseTool(BaseTool):
     """Tool for searching through Moya documentation."""
 
@@ -40,7 +46,170 @@ class KnowledgeBaseTool(BaseTool):
         logger.info(f"Initializing KnowledgeBaseTool with path: {self.docs_path}")
         if not self.docs_path:
             raise ValueError("docs_path is required")
-        self._load_docs()
+
+        # Initialize ChromaDB with better error handling
+        try:
+            self.chroma_client = chromadb.Client(Settings(
+                persist_directory=str(self.docs_path / ".chroma"),
+                anonymized_telemetry=False
+            ))
+
+            # Create or get collection
+            self.collection = self.chroma_client.get_or_create_collection(
+                name="moya_docs",
+                metadata={"hnsw:space": "cosine"}
+            )
+
+            # Initialize documents
+            self._load_docs()
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize ChromaDB: {e}")
+            raise RuntimeError(f"ChromaDB initialization failed: {e}")
+
+    def _extract_keywords(self, content: str) -> Set[str]:
+        """Extract keywords from document content."""
+        keywords = set()
+        
+        # Key terms to look for in documentation
+        important_terms = {
+            'agent', 'tool', 'framework', 'setup', 'install', 'configure',
+            'example', 'tutorial', 'guide', 'multi-agent', 'orchestrator',
+            'create', 'implement', 'custom', 'class', 'method', 'function',
+            'init', 'memory', 'registry', 'system', 'integration'
+        }
+        
+        # Process content line by line
+        for line in content.lower().split('\n'):
+            # Skip empty lines and code blocks
+            if not line.strip() or line.strip().startswith('```'):
+                continue
+                
+            # Extract words and check against important terms
+            words = set(re.findall(r'\w+', line))
+            keywords.update(words & important_terms)
+            
+            # Extract method names and class names
+            if 'class' in line:
+                class_name = re.search(r'class\s+(\w+)', line)
+                if class_name:
+                    keywords.add(class_name.group(1).lower())
+            
+            if 'def' in line:
+                method_name = re.search(r'def\s+(\w+)', line)
+                if method_name:
+                    keywords.add(method_name.group(1).lower())
+        
+        return keywords
+
+    def _process_section_for_embedding(self, section: DocSection) -> Tuple[str, Dict]:
+        """Process section content for embedding with improved code handling."""
+        # Extract section context
+        context_lines = []
+        code_blocks = []
+        current_context = []
+        
+        for line in section.content.split('\n'):
+            if line.strip().startswith('```python'):
+                # Save current context
+                if current_context:
+                    context_lines.append(' '.join(current_context))
+                    current_context = []
+                code_blocks.append('')
+            elif line.strip().startswith('```') and code_blocks:
+                # End of code block
+                if current_context:
+                    context_lines.append(' '.join(current_context))
+                    current_context = []
+            elif code_blocks and not line.strip().startswith('```'):
+                # Inside code block
+                if code_blocks:
+                    code_blocks[-1] += line + '\n'
+            else:
+                # Regular content
+                current_context.append(line.strip())
+        
+        # Add any remaining context
+        if current_context:
+            context_lines.append(' '.join(current_context))
+        
+        # Combine title and content with preserved code blocks
+        full_content = f"{section.title}\n"
+        if context_lines:
+            full_content += "\n".join(context_lines)
+        
+        metadata = {
+            "title": section.title,
+            "level": section.level,
+            "has_code": bool(code_blocks),
+            "content_type": self._categorize_section(section, full_content),
+            "code_blocks": code_blocks
+        }
+        
+        return full_content, metadata
+
+    def _load_docs(self):
+        """Load documents and create embeddings."""
+        try:
+            doc_files = list(self.docs_path.glob("*.md"))
+            logger.info(f"Found {len(doc_files)} documentation files")
+            if not doc_files:
+                raise ValueError("No documentation files found in specified path")
+
+            # Get existing IDs
+            try:
+                existing_ids = self.collection.get()["ids"]
+                if existing_ids:
+                    # Delete existing entries properly
+                    self.collection.delete(
+                        ids=existing_ids
+                    )
+                    logger.debug("Cleared existing collection entries")
+            except Exception as e:
+                logger.warning(f"Error clearing collection: {e}")
+
+            # Process all documents
+            all_texts = []
+            all_metadata = []
+            all_ids = []
+            id_counter = 0
+
+            for doc_path in doc_files:
+                try:
+                    with open(doc_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        sections = self._parse_markdown_sections(content)
+
+                        for section in sections:
+                            text, metadata = self._process_section_for_embedding(section)
+                            metadata["source_doc"] = doc_path.name
+
+                            all_texts.append(text)
+                            all_metadata.append(metadata)
+                            all_ids.append(f"section_{id_counter}")
+                            id_counter += 1
+                except Exception as e:
+                    logger.error(f"Error processing {doc_path}: {e}")
+                    continue
+
+            if all_texts:  # Only add if we have documents to add
+                # Batch add to ChromaDB with chunking to handle large collections
+                batch_size = 100
+                for i in range(0, len(all_texts), batch_size):
+                    end_idx = min(i + batch_size, len(all_texts))
+                    self.collection.add(
+                        documents=all_texts[i:end_idx],
+                        metadatas=all_metadata[i:end_idx],
+                        ids=all_ids[i:end_idx]
+                    )
+
+                logger.info(f"Loaded {id_counter} sections into vector database")
+            else:
+                logger.warning("No documents were processed successfully")
+
+        except Exception as e:
+            logger.error(f"Error loading documentation: {e}")
+            raise
 
     def _parse_markdown_sections(self, content: str) -> List[DocSection]:
         sections = []
@@ -167,56 +336,65 @@ class KnowledgeBaseTool(BaseTool):
         return "\n\n".join(response)
 
     def search_docs(self, query: str) -> List[Tuple[str, str]]:
-        """Enhanced search with cross-document referencing."""
-        if not hasattr(self, 'doc_contexts'):
-            self.doc_contexts = self._build_document_context()
-
-        query = query.lower()
-        query_terms = set(query.split())
-        all_results: List[SearchResult] = []
-
-        # Search across all documents
-        for doc_name, context in self.doc_contexts.items():
-            for section in context.sections:
-                relevance = 0
-                section_content = section.content.lower()
-
-                # Calculate relevance
-                term_matches = sum(term in section_content for term in query_terms)
-                heading_matches = sum(term in section.title.lower() for term in query_terms)
-
-                relevance = (term_matches * 0.6) + (heading_matches * 0.4)
-                if section.code_blocks and 'example' in query:
-                    relevance += 0.5
-
-                if relevance > 0:
-                    section_type = self._categorize_section(section, section_content)
-                    result = SearchResult(
-                        title=section.title,
-                        content=section.content.strip(),
-                        code_examples=section.code_blocks,
-                        source_doc=doc_name,
-                        relevance=relevance,
-                        section_type=section_type
-                    )
-                    all_results.append(result)
-
-        # Sort by relevance and format response
-        all_results.sort(key=lambda x: x.relevance, reverse=True)
-        response = self.format_structured_response(all_results[:10])
-        return [("Combined Results", response)]
-
-    def _load_docs(self):
-        """Pre-load documentation files."""
+        """Enhanced semantic search with better code block handling."""
         try:
-            doc_files = list(self.docs_path.glob("*.md"))
-            logger.info(f"Found {len(doc_files)} documentation files")
-            if not doc_files:
-                raise ValueError("No documentation files found in specified path")
-
-            # Log available documentation
-            for doc_file in doc_files:
-                logger.debug(f"Available doc: {doc_file.name}")
+            # Add code-related terms for better matching
+            if 'example' in query.lower() or 'code' in query.lower():
+                query = f"{query} implementation code_block example"
+            
+            results = self.collection.query(
+                query_texts=[query],
+                n_results=15,  # Increased for better coverage
+                include=["documents", "metadatas"]
+            )
+            
+            all_results: List[SearchResult] = []
+            seen_codes = set()  # Track unique code examples
+            
+            for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
+                # Extract code blocks from metadata
+                code_examples = metadata.get('code_blocks', []) if metadata.get('has_code') else []
+                
+                # Filter duplicate code examples
+                unique_codes = []
+                for code in code_examples:
+                    code_hash = hash(code.strip())
+                    if code_hash not in seen_codes:
+                        seen_codes.add(code_hash)
+                        unique_codes.append(code)
+                
+                result = SearchResult(
+                    title=metadata['title'],
+                    content=doc,
+                    code_examples=unique_codes,
+                    source_doc=metadata['source_doc'],
+                    relevance=1.0,
+                    section_type=metadata['content_type']
+                )
+                all_results.append(result)
+            
+            response = self.format_structured_response(all_results)
+            return [("Combined Results", response)]
+            
         except Exception as e:
-            logger.error(f"Error loading documentation: {e}")
-            raise
+            logger.error(f"Error during semantic search: {e}")
+            return [("Error", "Failed to search documentation")]
+
+    def _extract_code_blocks(self, text: str) -> List[str]:
+        """Extract code blocks from text."""
+        code_blocks = []
+        in_block = False
+        current_block = []
+
+        for line in text.split('\n'):
+            if line.startswith('```python'):
+                in_block = True
+            elif line.startswith('```') and in_block:
+                in_block = False
+                if current_block:
+                    code_blocks.append('\n'.join(current_block))
+                current_block = []
+            elif in_block:
+                current_block.append(line)
+
+        return code_blocks
