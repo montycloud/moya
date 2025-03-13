@@ -84,10 +84,19 @@ response = agent.handle_message("Hello, how can I help you?")
 print(response)
             </code></pre>
             
+            <h3 id="multi-agent-systems">Multi-Agent Systems</h3>
+            <p>Moya supports multi-agent systems where multiple specialized agents work together to handle different types of queries. The key components include:</p>
+            <ul>
+                <li><strong>Agent Registry</strong>: Maintains a collection of available agents.</li>
+                <li><strong>Classifiers</strong>: Route messages to the appropriate agent based on content analysis.</li>
+                <li><strong>Orchestrators</strong>: Coordinate the flow of messages between users and agents.</li>
+            </ul>
+            
+            
             <h3 id="agent-types">Agent Types</h3>
             <p>Moya supports several types of agents, each with its own capabilities and use cases:</p>
             <ul>
-                <li><strong>OpenAI Agents</strong>: Use OpenAI's models (like GPT-4) for generating responses.</li>
+                <li><strong>OpenAI Agents</strong>: Use OpenAI's models (like GPT-4o) for generating responses.</li>
                 <li><strong>Bedrock Agents</strong>: Leverage AWS Bedrock for accessing various foundation models.</li>
                 <li><strong>Ollama Agents</strong>: Connect to locally hosted models through Ollama for privacy-focused applications.</li>
                 <li><strong>Remote Agents</strong>: Communicate with external API endpoints for specialized tasks.</li>
@@ -102,15 +111,6 @@ print(response)
                 <li>Generate summaries of conversations</li>
             </ul>
             <p>This memory system enables agents to maintain context across multiple interactions, creating more coherent and contextually relevant responses.</p>
-            
-            <h3 id="multi-agent-systems">Multi-Agent Systems</h3>
-            <p>Moya supports multi-agent systems where multiple specialized agents work together to handle different types of queries. The key components include:</p>
-            <ul>
-                <li><strong>Agent Registry</strong>: Maintains a collection of available agents.</li>
-                <li><strong>Classifiers</strong>: Route messages to the appropriate agent based on content analysis.</li>
-                <li><strong>Orchestrators</strong>: Coordinate the flow of messages between users and agents.</li>
-            </ul>
-            
             <h3 id="orchestrators">Orchestrators</h3>
             <p>Orchestrators in Moya manage the flow of messages between users and agents. They handle:</p>
             <ul>
