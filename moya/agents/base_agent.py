@@ -34,6 +34,8 @@ class AgentConfig:
     llm_config: Optional[Dict[str, Any]] = None
     tool_registry: Optional[ToolRegistry] = None
     memory: Optional[BaseMemoryRepository] = None
+    is_tool_caller: bool = False
+    is_streaming: bool = False
 
     def __post_init__(self):
         if not self.agent_name:
@@ -96,6 +98,9 @@ class Agent(abc.ABC):
         self.tool_registry = config.tool_registry
         self.system_prompt = config.system_prompt or "You are a helpful AI assistant."
         self.memory = config.memory
+        self.is_tool_caller = config.is_tool_caller
+        self.is_streaming = config.is_streaming
+        
 
     @abc.abstractmethod
     def handle_message(self, message: str, **kwargs) -> str:

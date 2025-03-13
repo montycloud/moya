@@ -11,10 +11,15 @@ from openai import OpenAI
 from dataclasses import dataclass
 from dataclasses import dataclass
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from moya.agents.base_agent import Agent
 from moya.agents.base_agent import AgentConfig
+from moya.tools.base_tool import BaseTool
+from moya.tools.tool_registry import ToolRegistry
+from moya.memory.base_repository import BaseMemoryRepository
+import logging
 
+logging.basicConfig(level=logging.INFO) # Set logging level to INFO
 @dataclass
 class OpenAIAgentConfig(AgentConfig):
     """
@@ -22,7 +27,8 @@ class OpenAIAgentConfig(AgentConfig):
     """
     model_name: str = "gpt-4o"
     api_key: str = None
-    streaming: bool = False
+    tool_choice: Optional[str] = None
+
 class OpenAIAgent(Agent):
     """
     A simple OpenAI-based agent that uses the ChatCompletion API.
@@ -45,42 +51,225 @@ class OpenAIAgent(Agent):
         if not config.api_key:
             raise ValueError("OpenAI API key is required for OpenAIAgent.")
         self.client = OpenAI(api_key=config.api_key)
-        self.streaming = config.streaming
         self.system_prompt = config.system_prompt
+        self.tool_choice = config.tool_choice if config.tool_choice else None
+        self.max_iterations = 5
 
+    def get_tool_definitions(self) -> List[Dict[str, Any]]:
+        """
+        Discover tools available for this agent.
+        """
+        if not self.tool_registry:
+            return None
+        
+        # Generate tool definitions for OpenAI ChatCompletion
+        tools = [
+            {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        name: {
+                            "type": info["type"],
+                            "description": info["description"]
+                        } for name, info in tool.parameters.items()
+                    },
+                    "required": [
+                        name for name, info in tool.parameters.items() 
+                        if info.get("required", False)
+                    ]
+                }
+            }
+        }
+        for tool in self.tool_registry.get_tools()
+        ]
+        return tools
+
+    
     def handle_message(self, message: str, **kwargs) -> str:
         """
         Calls OpenAI ChatCompletion to handle the user's message.
         """
-        try:
-            response = self.client.chat.completions.create(model=self.model_name,
-            messages=[
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": message},
-            ])
-            return response.choices[0].message.content
-        except Exception as e:
-            return f"[OpenAIAgent error: {str(e)}]"
+        return self.run_chat(message)
 
     def handle_message_stream(self, message: str, **kwargs):
         """
         Calls OpenAI ChatCompletion to handle the user's message with streaming support.
         """
-        # Starting streaming response from OpenAIAgent
-        try:
+        self.run_chat(message)
+
+    def run_chat(self, user_message):
+        """
+        Handle a chat session with the user and resolve tool calls iteratively.
+        
+        Args:
+            user_message (str): The initial message from the user.
+        
+        Returns:
+            str: Final response after tool call processing.
+        """
+        logging.info("Starting chat with user message: %s", user_message)
+        conversation = [{"role": "user", "content": user_message}]
+        iteration = 0
+
+        while iteration < self.max_iterations:
+            logging.info("Iteration %d: requesting response", iteration)
+            message = self.get_response(conversation)
+            logging.info("Received message: %s", message)
+            
+            # Extract message content
+            if isinstance(message, dict):
+                content = message.get("content", "")
+                tool_calls = message.get("tool_calls", [])
+            else:
+                content = message.content if message.content is not None else ""
+                tool_calls = message.tool_calls if hasattr(message, "tool_calls") and message.tool_calls else []
+                # Convert to list of dicts if it's not already
+                if tool_calls and not isinstance(tool_calls[0], dict):
+                    tool_calls = [tc.dict() for tc in tool_calls]
+                    
+            # Create assistant message entry
+            entry = {"role": "assistant", "content": content}
+            if tool_calls:
+                entry["tool_calls"] = tool_calls
+            conversation.append(entry)
+
+            # Process tool calls if any
+            if tool_calls:
+                for tool_call in tool_calls:
+                    logging.info("Detected tool call: %s", tool_call)
+                    tool_response = self.handle_tool_call(tool_call)
+                    logging.info("Tool response: %s", tool_response)
+                    
+                    conversation.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.get("id"),
+                            "content": tool_response
+                    })
+                iteration += 1
+            else:
+                break
+
+        final_message = conversation[-1].get("content", "")
+        logging.info("Final output: %s", final_message)
+        return final_message
+
+    def get_response(self, conversation):
+        """
+        Generate a response via the OpenAI ChatCompletion API with tool call support.
+        
+        Args:
+            conversation (list): Current chat messages.
+        
+        Returns:
+            dict: Message from the assistant, which may include 'tool_calls'.
+        """
+        logging.info("Requesting response for conversation: %s", conversation)
+        
+        if self.is_streaming:
             response = self.client.chat.completions.create(
                 model=self.model_name,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": message},
-                ],
+                messages=conversation,
+                tools=self.get_tool_definitions() or None,
+                tool_choice=self.tool_choice if self.tool_registry else None,
                 stream=True
             )
+            response_text = ""
+            tool_calls = []
+            current_tool_call = None
+            
             for chunk in response:
-                if chunk.choices[0].delta.content is not None:
-                    content = chunk.choices[0].delta.content
-                    yield content
-        except Exception as e:
-            error_message = f"[OpenAIAgent error: {str(e)}]"
-            print(error_message)
-            yield error_message
+                delta = chunk.choices[0].delta
+                if delta:
+                    if delta.content is not None:
+                        response_text += delta.content
+                        print(delta.content, end="", flush=True)
+                        
+                    if delta.tool_calls:
+                        for tool_call_delta in delta.tool_calls:
+                            tool_call_index = tool_call_delta.index
+                            
+                            # Ensure we have enough slots in our tool_calls list
+                            while len(tool_calls) <= tool_call_index:
+                                tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                                
+                            current_tool_call = tool_calls[tool_call_index]
+                            
+                            # Update tool call information from this chunk
+                            if tool_call_delta.id:
+                                current_tool_call["id"] = tool_call_delta.id
+                                
+                            if tool_call_delta.function:
+                                if tool_call_delta.function.name:
+                                    current_tool_call["function"]["name"] = tool_call_delta.function.name
+                                    
+                                if tool_call_delta.function.arguments:
+                                    current_tool_call["function"]["arguments"] = (
+                                        current_tool_call["function"].get("arguments", "") + 
+                                        tool_call_delta.function.arguments
+                                    )
+            
+            print()  # New line after streaming output
+            result = {"content": response_text}
+            if tool_calls:
+                result["tool_calls"] = tool_calls
+            return result
+        else:
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=conversation,
+                tools=self.get_tool_definitions(),
+                tool_choice=self.tool_choice if self.tool_registry else None
+            )
+            message = response.choices[0].message
+            
+            # Convert the response to a dict for uniform handling
+            result = {"content": message.content or ""}
+            
+            if message.tool_calls:
+                # Convert tool_calls to a list of dicts
+                if isinstance(message.tool_calls, list):
+                    if not isinstance(message.tool_calls[0], dict):
+                        result["tool_calls"] = [tc.dict() for tc in message.tool_calls]
+                    else:
+                        result["tool_calls"] = message.tool_calls
+                else:
+                    result["tool_calls"] = [message.tool_calls.dict()]
+                    
+            logging.info("Obtained response message: %s", message)
+            return result
+
+    def handle_tool_call(self, tool_call):
+        """
+        Execute the tool specified in the tool call.
+        Implements tools: 'echo' and 'reverse'.
+        
+        Args:
+            tool_call (dict): Contains 'id', 'type', and 'function' (with 'name' and 'arguments').
+        
+        Returns:
+            str: The output from executing the tool.
+        """        
+        function_data = tool_call.get("function", {})
+        name = function_data.get("name")
+        
+        # Parse arguments if provided; they are passed as a JSON string by the API
+        import json
+        try:
+            args = json.loads(function_data.get("arguments", "{}"))
+        except json.JSONDecodeError:
+            args = {}
+            
+        logging.info("Handling tool '%s' with arguments: %s", name, args)
+
+        tool = self.tool_registry.get_tool(name)
+        if tool:
+            result = tool.function(**args)
+            logging.info("Tool execution result: %s", result)
+            return result
+
+        logging.info("Tool '%s' not found in registry", name)
+        return f"[Tool '{name}' not found]"
