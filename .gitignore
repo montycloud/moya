@@ -24,3 +24,5 @@ venv/
 *.egg-info/
 
 .env.*
+
+.serverless
