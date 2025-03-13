@@ -26,29 +26,44 @@ def setup_agent():
     
     logger.info(f"Setting up agent with docs path: {docs_path}")
     
+    # Validate documentation path
+    if not docs_path.exists():
+        raise ValueError(f"Documentation path not found: {docs_path}")
+        
+    # Log available documentation files
+    doc_files = list(docs_path.glob("*.md"))
+    logger.info(f"Found documentation files: {[f.name for f in doc_files]}")
+    if not doc_files:
+        raise ValueError("No documentation files found!")
+
     # Set up memory components
     memory_repo = InMemoryRepository()
     memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
     tool_registry.register_tool(memory_tool)
 
-    # Set up knowledge base
-    knowledge_tool = KnowledgeBaseTool(docs_path=str(docs_path))
-    tool_registry.register_tool(knowledge_tool)
-    
-    # Ensure documentation exists
-    if not list(docs_path.rglob("*.md")):
-        logger.warning("No documentation files found!")
-        default_doc = docs_path / "moya_overview.md"
-        if not default_doc.exists():
-            logger.info("Creating default documentation...")
-            default_doc.parent.mkdir(parents=True, exist_ok=True)
-            with open(default_doc, 'w', encoding='utf-8') as f:
-                f.write("""# Moya Framework\n\nMOYA is a reference implementation of the research paper titled "Engineering LLM Powered Multi-agent Framework for Autonomous CloudOps". The framework provides a flexible and extensible architecture for creating, managing, and orchestrating multiple AI agents to handle various tasks autonomously.""")
+    # Set up knowledge base with validation
+    try:
+        knowledge_tool = KnowledgeBaseTool(
+            name="KnowledgeBaseTool",
+            description="Tool for searching Moya documentation",
+            docs_path=str(docs_path)
+        )
+        # Validate tool initialization
+        test_doc = knowledge_tool.get_doc("core-concepts.md")
+        if not test_doc:
+            raise ValueError("Failed to read core documentation")
+            
+        tool_registry.register_tool(knowledge_tool)
+        logger.info("Successfully initialized knowledge base tool")
+    except Exception as e:
+        logger.error(f"Failed to initialize knowledge base: {e}")
+        raise
 
     # Create documentation agent
     agent = DocumentationAgent(tool_registry=tool_registry)
     agent.setup()
+    logger.info("Documentation agent initialized successfully")
 
     # Set up registry and orchestrator
     registry = AgentRegistry()

@@ -18,7 +18,7 @@ def setup_memory_components():
 def create_academic_advisor(tool_registry) -> OpenAIAgent:
     """Create academic advisor agent."""
     agent_config = OpenAIAgentConfig(
-        system_prompt="""You are an Academic Advisor AI specializing in helping students with:
+        system_prompt="""You are an Academic Advisor AI specializing in:
         - Answering study-related questions
         - Homework assistance and explanations
         - Study planning and organization
@@ -26,7 +26,7 @@ def create_academic_advisor(tool_registry) -> OpenAIAgent:
         
         Always provide detailed explanations and encourage critical thinking.
         Focus on helping students understand concepts rather than just giving answers.""",
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.7
     )
     
@@ -50,7 +50,7 @@ def create_career_coach(tool_registry) -> OpenAIAgent:
         
         Provide professional, actionable advice focused on student career development.
         Always be encouraging while maintaining professionalism.""",
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.7
     )
     
@@ -74,7 +74,7 @@ def create_job_search_agent(tool_registry) -> OpenAIAgent:
         
         Focus on student-friendly opportunities and entry-level positions.
         Provide practical advice for job searching and application processes.""",
-        model_name="gpt-4",
+        model_name="gpt-4o",
         temperature=0.7
     )
     
@@ -96,7 +96,7 @@ def create_classifier_agent() -> OpenAIAgent:
         3. job_search: For internship search, job applications, and opportunity finding
         
         Analyze the query and return ONLY the most appropriate agent name.""",
-        model_name="gpt-4"
+        model_name="gpt-4o"
     )
     
     agent = OpenAIAgent(

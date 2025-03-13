@@ -1,77 +1,79 @@
-# Installing and Setting Up Moya
+# Installation Guide
 
 ## Installation Methods
 
-### 1. Using pip (Recommended)
+### Method 1: Using pip (Recommended)
 ```bash
 # Install latest stable release
 pip install moya-framework
-
-# For development version
-pip install git+https://github.com/your-org/moya.git
 ```
 
-### 2. From Source
+### Method 2: From Source
 ```bash
 git clone https://github.com/your-org/moya.git
 cd moya
 pip install -e .
 ```
 
-## Initial Setup
+## Environment Setup
 
-### 1. Environment Configuration
+### 1. OpenAI Integration
 ```bash
-# Set up OpenAI API key
 export OPENAI_API_KEY="your-api-key"
+```
 
-# For AWS Bedrock (optional)
+### 2. AWS Bedrock Integration
+```bash
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 export AWS_DEFAULT_REGION="us-east-1"
 ```
 
-### 2. Basic Project Structure
+### 3. Ollama Setup
+1. Install Ollama from [ollama.ai](https://ollama.ai)
+2. Start the Ollama service
+3. Pull your desired model:
+```bash
+ollama pull llama2
+```
+
+## Project Structure
 ```
 my_moya_project/
-├── agents/             # Custom agent implementations
-├── tools/              # Custom tools
-├── config/            
-│   └── config.yml     # Agent configurations
-└── main.py            # Entry point
-```
-
-### 3. Minimal Working Example
-```python
-from moya.agents import OpenAIAgent
-from moya.tools import ToolRegistry
-from moya.memory import InMemoryRepository
-
-# Initialize components
-tool_registry = ToolRegistry()
-memory_repo = InMemoryRepository()
-
-# Configure agent
-agent = OpenAIAgent(
-    agent_name="test_agent",
-    description="Basic test agent",
-    tool_registry=tool_registry
-)
-
-# Test the setup
-response = agent.handle_message("Hello!")
-print(response)
+├── agents/          # Custom agent implementations
+├── tools/           # Custom tools
+├── config/          # Configuration files
+└── main.py         # Entry point
 ```
 
 ## Verification
 
-Run this test script to verify your installation:
 ```python
 from moya import __version__
 print(f"Moya version: {__version__}")
 
-# Test OpenAI integration
+# Test agent setup
 from moya.agents import OpenAIAgent
-agent = OpenAIAgent(agent_name="test")
-agent.setup()  # This will verify API key and connections
+agent = OpenAIAgent(
+    agent_name="test",
+    description="Test agent"
+)
+agent.setup()  # Verifies configuration
 ```
+
+## Troubleshooting
+
+1. **API Key Issues**
+   - Verify environment variables are set
+   - Check API key permissions
+   - Ensure proper key format
+
+2. **Model Access**
+   - Confirm model availability in your region
+   - Verify API quota and limits
+   - Check model access permissions
+
+3. **Ollama Issues**
+   - Verify Ollama service is running
+   - Check model download status
+   - Confirm port availability (default: 11434)

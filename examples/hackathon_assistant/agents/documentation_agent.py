@@ -15,16 +15,26 @@ class DocumentationAgent(OpenAIAgent):
         tool_registry: Optional[Any] = None,
     ):
         agent_config = OpenAIAgentConfig(
-            system_prompt="""You are a Documentation Assistant for the Moya framework.
+            system_prompt="""You are a Documentation Assistant for the Moya framework, which is a framework for CloudOps automation using AI agents.
             Your primary goal is to help users understand and use Moya effectively.
-            Follow these rules strictly:
-            1. When asked about installation or setup, ALWAYS check 'basic_setup.md' and 'installation.md' first
-            2. Provide specific, actionable steps from the documentation
-            3. Include relevant code examples when available
-            4. Cite the documentation files you're using
-            5. If multiple docs are relevant, combine information cohesively
-            6. For installation queries, always include prerequisites and basic setup steps""",
-            model_name="gpt-4",
+            
+            CORE RULES:
+            1. NEVER generate responses without documentation evidence
+            2. NEVER mix Moya with other frameworks or projects
+            3. ALWAYS include specific examples when they exist in the documentation
+            4. Response Format:
+               a. Start with clear framework definition from README.md
+               b. Give detailed steps/information from primary doc
+               c. Show example code blocks from docs if they exist
+               d. Add related information from other docs
+               e. Cite [filename] for EVERY section
+            5. For code examples:
+               - Include complete code blocks from docs
+               - Keep code formatting intact
+               - Show setup AND usage examples
+            6. If information is missing, say: "The documentation does not cover [aspect]"
+            7. Never infer or add information beyond the docs""",
+            model_name="gpt-4o",
             temperature=0.7
         )
         
@@ -35,48 +45,88 @@ class DocumentationAgent(OpenAIAgent):
             tool_registry=tool_registry,
             agent_config=agent_config
         )
-
+    
     def handle_message(self, message: str, **kwargs) -> str:
-        """Handle user query using knowledge base."""
+        """Handle user queries by searching documentation."""
         try:
-            # Log the incoming query
-            logger.debug(f"Received query: {message}")
+            logger.info(f"Processing query: {message}")
+            docs_to_check = []
             
-            # Search documentation with broader context
-            docs = self.call_tool(
+            # Always get README for framework definition
+            readme_content = self.call_tool(
+                tool_name="KnowledgeBaseTool",
+                method_name="get_doc",
+                doc_name="README.md"
+            )
+            if readme_content:
+                docs_to_check.append(("README.md", readme_content))
+                logger.debug("Added README.md")
+            
+            # Search with query type detection
+            message_lower = message.lower()
+            
+            # Installation queries
+            if any(term in message_lower for term in ['install', 'setup', 'configure', 'pip']):
+                logger.info("Detected installation query")
+                install_content = self.call_tool(
+                    tool_name="KnowledgeBaseTool",
+                    method_name="get_doc",
+                    doc_name="installation.md"
+                )
+                if install_content:
+                    docs_to_check.insert(1, ("installation.md", install_content))
+                    logger.debug("Added installation.md")
+            
+            # Get examples from guides
+            guides_content = self.call_tool(
+                tool_name="KnowledgeBaseTool",
+                method_name="get_doc",
+                doc_name="guides.md"
+            )
+            if guides_content:
+                docs_to_check.append(("guides.md", guides_content))
+                logger.debug("Added guides.md")
+            
+            # Get remaining relevant docs
+            additional_docs = self.call_tool(
                 tool_name="KnowledgeBaseTool",
                 method_name="search_docs",
                 query=message
             )
             
-            logger.debug(f"Found {len(docs)} relevant docs")
-            for name, _ in docs:
-                logger.debug(f"Using doc: {name}")
+            # Add any new docs not already included
+            seen_docs = {doc[0] for doc in docs_to_check}
+            for doc_name, content in additional_docs:
+                if doc_name not in seen_docs:
+                    docs_to_check.append((doc_name, content))
+                    seen_docs.add(doc_name)
             
-            if not docs:
-                logger.warning("No relevant documentation found")
-                return "I don't have documentation about that aspect of Moya yet. Please check the official documentation or add this topic to our knowledge base."
+            logger.info(f"Found {len(docs_to_check)} relevant documents")
             
-            # Enhance prompt with found documentation
-            context = "\n\nRelevant documentation:\n"
-            for name, content in docs:
-                context += f"\n--- {name} ---\n{content}\n"
-            
-            enhanced_message = f"""Based on the following documentation, provide a complete and practical answer to: "{message}"
+            if not docs_to_check:
+                return "I don't have documentation about that aspect of Moya yet."
+
+            # Format documentation context with emphasis on examples
+            context = "\n\nRelevant Documentation:\n"
+            for name, content in docs_to_check:
+                context += f"\n=== {name} ===\n{content}\n"
+
+            enhanced_message = f"""Based STRICTLY on these documentation sections, explain: "{message}"
 
 {context}
 
-Remember to:
-1. Include specific steps and commands
-2. Show relevant code examples
-3. Mention prerequisites
-4. Cite which documentation you're using"""
-            
-            # Get response using enhanced context
-            response = super().handle_message(enhanced_message, **kwargs)
-            logger.debug(f"Generated response using {len(docs)} docs")
-            return response
+RESPONSE REQUIREMENTS:
+1. Start with framework definition from README.md
+2. Give step-by-step instructions or explanations from the primary relevant doc
+3. Include ALL relevant code examples - keep them complete and properly formatted
+4. [filename] Citations before EVERY section of information
+5. If showing examples, include both setup AND usage code
+6. If any aspect is missing in docs, say: "The documentation does not cover [aspect]"
+7. NEVER add information beyond what's in the documentation"""
+
+            logger.info("Generating response using documentation context")
+            return super().handle_message(enhanced_message, **kwargs)
             
         except Exception as e:
-            logger.error(f"Error handling message: {e}", exc_info=True)
-            return f"[DocumentationAgent error: {str(e)}]"
+            logger.error(f"Error processing message: {e}", exc_info=True)
+            return f"Error accessing documentation: {str(e)}"

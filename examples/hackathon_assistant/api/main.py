@@ -6,12 +6,11 @@ import logging
 import asyncio
 from pathlib import Path
 from typing import AsyncGenerator
-
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.memory_tool import MemoryTool
 from moya.tools.tool_registry import ToolRegistry
-from ..agents.documentation_agent import DocumentationAgent
-from ..tools.knowledge_base_tool import KnowledgeBaseTool
+from examples.hackathon_assistant.agents.documentation_agent import DocumentationAgent
+from examples.hackathon_assistant.tools.knowledge_base_tool import KnowledgeBaseTool
 import uuid
 
 # Configure logging
