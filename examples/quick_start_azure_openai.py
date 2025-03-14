@@ -16,13 +16,31 @@ from moya.conversation.message import Message
 
 
 def reverse_text(text: str) -> str:
+    """
+    Reverse the given text.
+
+    Args:
+        text (str): The text to reverse.
+
+    Returns:
+        str: The reversed text.
+    """
     return f"{text[::-1]}"
 
 
 def fetch_weather_data(location: str) -> str:
-    wheather_list = ["sunny", "rainy", "cloudy", "windy"]
+    """
+    Fetch random weather data for a given location.
+
+    Args:
+        location (str): The location to fetch weather data for.
+
+    Returns:
+        str: A string describing the weather in the given location.
+    """
+    weather_list = ["sunny", "rainy", "cloudy", "windy"]
     # Pick a random weather condition
-    return f"The weather in {location} is {random.choice(wheather_list)}."
+    return f"The weather in {location} is {random.choice(weather_list)}."
 
 
 def setup_agent():
@@ -73,10 +91,10 @@ def setup_agent():
         agent_type="ChatAgent",
         tool_registry=tool_registry,
         system_prompt="""
-            You are an interactive chat agent that can remember previous conversations. "
-            You have access to tools that helps you to store and retrieve conversation history.
-            Always begin with storing the message in memory and fetch the conversation summary before generating final response.
-            You have access to reverse_text_tool that reverse the text. Always use this tool to reverse the text.
+            You are an interactive chat agent that can remember previous conversations.
+            You have access to tools that help you store and retrieve conversation history.
+            Always begin with storing the message in memory and fetch the conversation summary before generating the final response.
+            You have access to reverse_text_tool that reverses the text. Always use this tool to reverse the text.
             You have access to fetch_weather_data_tool that fetches the weather data for a location.
         """,
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -119,6 +137,9 @@ def format_conversation_context(messages):
 
 
 def main():
+    """
+    Main function to run the interactive chat application.
+    """
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
     session_memory = EphemeralMemory.memory_repository
@@ -137,7 +158,7 @@ def main():
             break
 
         # Store user message
-        session_memory.append_message(thread_id, Message(thread_id=thread_id, sender="user",content=user_input))
+        session_memory.append_message(thread_id, Message(thread_id=thread_id, sender="user", content=user_input))
 
         # Print Assistant prompt
         print("\nAssistant: ", end="", flush=True)
@@ -155,7 +176,6 @@ def main():
         print(response)
         # Print newline after response
         print()
-
 
 
 if __name__ == "__main__":
