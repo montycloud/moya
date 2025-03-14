@@ -7,7 +7,6 @@ Describes a generic interface for a "tool" that an agent can discover and call.
 import abc
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, get_type_hints
-import logging
 
 @dataclass
 class BaseTool():

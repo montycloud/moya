@@ -17,7 +17,6 @@ from moya.agents.base_agent import AgentConfig
 from moya.tools.base_tool import BaseTool
 from moya.tools.tool_registry import ToolRegistry
 from moya.memory.base_repository import BaseMemoryRepository
-import logging
 
 @dataclass
 class OpenAIAgentConfig(AgentConfig):

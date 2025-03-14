@@ -1,7 +1,7 @@
 """
 Example demonstrating dynamic agent creation and registration during runtime.
 """
-
+import os
 from typing import Dict, Any
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
@@ -11,14 +11,15 @@ from moya.registry.agent_registry import AgentRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
-from moya.tools.base_tool import BaseTool, EphemeralMemoryTool
+from moya.tools.base_tool import BaseTool
+from moya.tools.ephemeral_memory import EphemeralMemory 
 
 def setup_memory_components():
     """Set up shared memory components."""
    # memory_repo = InMemoryRepository()
    # memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
-    EphemeralMemoryTool(memory_repository=InMemoryRepository())
+    EphemeralMemory.configure_memory_tools(tool_registry)
     tool_registry.register_tool(BaseTool(name="ReverseTool", function=reverse_text_tool))
     return tool_registry
 
@@ -111,8 +112,6 @@ def main():
     # Set up initial components
     tool_registry = setup_memory_components()
     registry = AgentRegistry()
-
-    print("Tools :",tool_registry.get_tools())
     
     config = OpenAIAgentConfig(
         agent_name="english_agent",
@@ -180,7 +179,7 @@ def main():
             continue
 
         # Get the last used agent or default to the first one
-        last_agent = registry.get_agent(agents[0])
+        last_agent = registry.get_agent(agents[0].name)
 
         # Store the user message first
         if last_agent.tool_registry:

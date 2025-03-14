@@ -10,9 +10,10 @@ from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.tools.ephemeral_memory import EphemeralMemory
+from moya.conversation.message import Message
+from moya.conversation.thread import Thread
 import os
 import sys
-import logging
 
 def setup_agent():
     # Set up memory components
@@ -57,6 +58,8 @@ def format_conversation_context(messages):
 def main():
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
+    session_memory = EphemeralMemory.memory_repository
+    session_memory.create_thread(Thread(thread_id=thread_id))
 
     print("Welcome to Interactive Chat! (Type 'quit' or 'exit' to end)")
     print("-" * 50)
@@ -69,6 +72,9 @@ def main():
         if user_input.lower() in ['quit', 'exit']:
             print("\nGoodbye!")
             break
+
+        # Store user message
+        session_memory.append_message(thread_id, Message(thread_id=thread_id, sender="user",content=user_input))
 
         # Print Assistant prompt
         print("\nAssistant: ", end="", flush=True)
