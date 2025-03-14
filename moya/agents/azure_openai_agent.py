@@ -46,7 +46,6 @@ class AzureOpenAIAgent(Agent):
         :param config: Optional configuration for the agent.
         """
         super().__init__(config=config)
-        print("==============>>>>")
         self.model_name = config.model_name
         self.system_prompt = config.system_prompt
         self.tool_choice = config.tool_choice if config.tool_choice else None
@@ -68,7 +67,6 @@ class AzureOpenAIAgent(Agent):
             "azure_endpoint": api_base,
             "api_version": api_version
         }
-        print(f"Setting up AzureOpenAI with params: {params}")
         if config.organization:  
             params["organization"] = config.organization
         self.client = AzureOpenAI(
@@ -184,7 +182,6 @@ class AzureOpenAIAgent(Agent):
         
         if self.is_streaming:
             tools_available = self.get_tool_definitions() or None
-            print("Tools available:", tools_available)
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=conversation,
@@ -234,7 +231,6 @@ class AzureOpenAIAgent(Agent):
             return result
         else:
             tools_available = self.get_tool_definitions() or None
-            print("Tools available:", tools_available)
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=conversation,
@@ -257,23 +253,6 @@ class AzureOpenAIAgent(Agent):
                     result["tool_calls"] = [message.tool_calls.dict()]
                     
             return result
-
-    def handle_message(self, message: str, **kwargs) -> str:
-        """
-        Calls AzureOpenAI ChatCompletion to handle the user's message.
-        """
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": message},
-                ]
-            )
-            # print(f"Response: {response}")
-            return response.choices[0].message.content
-        except Exception as e:
-            return f"[AzureOpenAIAgent error: {str(e)}]"
 
     def handle_tool_call(self, tool_call):
         """

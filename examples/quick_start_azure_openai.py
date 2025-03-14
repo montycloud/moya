@@ -3,6 +3,7 @@ Interactive chat example using OpenAI agent with conversation memory.
 """
 
 import os
+import random
 from moya.conversation.thread import Thread
 from moya.tools.base_tool import BaseTool
 from moya.tools.ephemeral_memory import EphemeralMemory
@@ -15,8 +16,14 @@ from moya.conversation.message import Message
 
 
 def reverse_text(text: str) -> str:
-    print("calling reverse_text tool: reverse_text")
-    return text[::-1]
+    return f"{text[::-1]}"
+
+
+def fetch_weather_data(location: str) -> str:
+    wheather_list = ["sunny", "rainy", "cloudy", "windy"]
+    # Pick a random weather condition
+    return f"The weather in {location} is {random.choice(wheather_list)}."
+
 
 def setup_agent():
     """
@@ -27,11 +34,11 @@ def setup_agent():
     """
     # Set up memory components
     tool_registry = ToolRegistry()
-    # EphemeralMemory.configure_memory_tools(tool_registry)
+    EphemeralMemory.configure_memory_tools(tool_registry)
 
     reverse_text_tool = BaseTool(
         name="reverse_text_tool",
-        description="Too to reverse any given text",
+        description="Tool to reverse any given text",
         function=reverse_text,
         parameters={
             "text": {
@@ -43,6 +50,20 @@ def setup_agent():
     )
     tool_registry.register_tool(reverse_text_tool)
 
+    fetch_weather_data_tool = BaseTool(
+        name="fetch_weather_data_tool",
+        description="Tool to fetch weather data for a location",
+        function=fetch_weather_data,
+        parameters={
+            "location": {
+                "type": "string",
+                "description": "The location to fetch weather data for"
+            }
+        },
+        required=["location"]
+    )
+    tool_registry.register_tool(fetch_weather_data_tool)
+
 
     # Create agent configuration
     agent_config = AzureOpenAIAgentConfig(
@@ -52,8 +73,11 @@ def setup_agent():
         agent_type="ChatAgent",
         tool_registry=tool_registry,
         system_prompt="""
-            You are an interactive chat agent that can remember previous conversations.
-            You have access to reverse_text tool that reverse the text. Always use this tool to reverse the text.
+            You are an interactive chat agent that can remember previous conversations. "
+            You have access to tools that helps you to store and retrieve conversation history.
+            Always begin with storing the message in memory and fetch the conversation summary before generating final response.
+            You have access to reverse_text_tool that reverse the text. Always use this tool to reverse the text.
+            You have access to fetch_weather_data_tool that fetches the weather data for a location.
         """,
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),  # Use default OpenAI API base
@@ -131,7 +155,6 @@ def main():
         print(response)
         # Print newline after response
         print()
-
 
 
 
