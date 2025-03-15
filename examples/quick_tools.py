@@ -15,7 +15,7 @@ class QuickTools:
         :return: The conversation context
         """
         # Thread id will be like user_id-date_hours (24 hour format) so a new thread is formed every hour.
-        thread_id = f"{QuickTools.user_id}-{datetime.now().strftime("%Y%m%d%H")}"
+        thread_id = f"{QuickTools.user_id}-{datetime.now().strftime('%Y%m%d%H')}"
         return json.dumps({
             "thread_id": thread_id,
             "user_id": "42",
