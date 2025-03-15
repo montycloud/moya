@@ -6,6 +6,7 @@ Represents a single message within a conversation thread.
 
 from datetime import datetime
 from typing import Optional
+from typing import Dict, Any
 
 
 class Message:
@@ -50,3 +51,14 @@ class Message:
             f"metadata={self.metadata!r}"
             f")"
         )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert the Message object into a JSON-serializable dictionary.
+        """
+        return {
+            "role": self.sender.lower(),  # Ensure role is lowercase
+            "content": [{"type": "text", "text": self.content}],  # Structured content
+            "timestamp": self.timestamp.isoformat(),  # Convert datetime to string
+            "metadata": self.metadata  # Keep metadata as-is
+        }
