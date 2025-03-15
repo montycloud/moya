@@ -37,12 +37,9 @@ class OpenAIAgent(Agent):
         config: OpenAIAgentConfig   
     ):
         """
-        :param agent_name: Unique name or identifier for the agent.
-        :param description: A brief explanation of the agent's capabilities.
-        :param model_name: The OpenAI model name (e.g., "gpt-3.5-turbo").
-        :param config: Optional config dict (unused by default).
-        :param tool_registry: Optional ToolRegistry to enable tool calling.
-        :param agent_config: Optional configuration for the agent.
+        Initialize the OpenAIAgent.
+
+        :param config: Configuration for the agent.
         """
         super().__init__(config=config)
         self.model_name = config.model_name
@@ -91,15 +88,15 @@ class OpenAIAgent(Agent):
         """
         Calls OpenAI ChatCompletion to handle the user's message.
         """
-        return self.run_chat(message)
+        return self.handle(message)
 
     def handle_message_stream(self, message: str, **kwargs):
         """
         Calls OpenAI ChatCompletion to handle the user's message with streaming support.
         """
-        return self.run_chat(message)
+        return self.handle(message)
 
-    def run_chat(self, user_message):
+    def handle(self, user_message):
         """
         Handle a chat session with the user and resolve tool calls iteratively.
         
