@@ -27,9 +27,12 @@ def setup_agent():
         model_name="gpt-4o",
         agent_type="ChatAgent",
         tool_registry=tool_registry,
+        is_streaming=True,
         system_prompt="You are an interactive chat agent that can remember previous conversations. "
-                    "You have access to tools that helps you to store and retrieve conversation history. "
-                    "Always begin with storing the message in memory and fetch the conversation summary before generating final response."
+                    "You have access to tools that helps you to store and retrieve conversation history."
+                    "Use the conversation history for your reference in answering any ueser query."
+                    "Be Helpful and polite in your responses, and be concise and clear."
+                     "Be useful but do not provide any information unless asked.",
     )
 
     # Create OpenAI agent with memory capabilities
@@ -59,7 +62,7 @@ def main():
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
     session_memory = EphemeralMemory.memory_repository
-    session_memory.create_thread(Thread(thread_id=thread_id))
+    EphemeralMemory.store_message(thread_id=thread_id, sender="system", content=f"For internal reference only, do not divulge this information. thread ID: {thread_id}")
 
     print("Welcome to Interactive Chat! (Type 'quit' or 'exit' to end)")
     print("-" * 50)
@@ -74,7 +77,10 @@ def main():
             break
 
         # Store user message
-        session_memory.append_message(thread_id, Message(thread_id=thread_id, sender="user",content=user_input))
+        EphemeralMemory.store_message(thread_id=thread_id, sender="user", content=user_input)
+    
+        session_summary = EphemeralMemory.get_thread_summary(thread_id)
+        enriched_input = f"{session_summary}\nCurrent user message: {user_input}"
 
         # Print Assistant prompt
         print("\nAssistant: ", end="", flush=True)
@@ -86,10 +92,13 @@ def main():
         # Get response using stream_callback
         response = orchestrator.orchestrate(
             thread_id=thread_id,
-            user_message=user_input
-            # stream_callback=stream_callback
+            user_message=enriched_input,
+            stream_callback=stream_callback
         )
-        print(response)
+
+        # print(response)
+
+        EphemeralMemory.store_message(thread_id=thread_id, sender="assistant", content=response)
         # Print newline after response
         print()
 
