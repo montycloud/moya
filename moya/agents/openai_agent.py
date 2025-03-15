@@ -257,5 +257,7 @@ class OpenAIAgent(Agent):
                 return result
             except TypeError:
                 return f"[Tool '{name}' requires arguments: {tool.parameters}]"
+            except Exception as e:
+                return f"[Error executing tool '{name}': {str(e)}]"
 
         return f"[Tool '{name}' not found]"
