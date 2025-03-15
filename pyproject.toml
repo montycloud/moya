@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moya-ai"
-version = "0.1.4"
+version = "0.1.5"
 description = "A reference implementation of the Moya AI framework."
 readme = "README.md"
 license = { file = "LICENSE" }
