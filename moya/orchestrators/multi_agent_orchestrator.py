@@ -2,6 +2,7 @@ from typing import Optional
 from moya.orchestrators.base_orchestrator import BaseOrchestrator
 from moya.registry.agent_registry import AgentRegistry
 from moya.classifiers.base_classifier import BaseClassifier
+from moya.tools.ephemeral_memory import EphemeralMemory
 
 class MultiAgentOrchestrator(BaseOrchestrator):
     """
@@ -62,17 +63,7 @@ class MultiAgentOrchestrator(BaseOrchestrator):
         agent_prefix = f"[{agent.agent_name}] "
 
         # Store user message in memory if possible
-        if agent.tool_registry:
-            try:
-                agent.call_tool(
-                    tool_name="MemoryTool",
-                    method_name="store_message",
-                    thread_id=thread_id,
-                    sender="user",
-                    content=user_message
-                )
-            except Exception as e:
-                print(f"Error storing user message: {e}")
+        EphemeralMemory.store_message(thread_id=thread_id, sender="user", content=user_message)
 
         # Handle message with streaming support
         if stream_callback:
@@ -92,16 +83,6 @@ class MultiAgentOrchestrator(BaseOrchestrator):
             response = agent_prefix + agent_response
 
         # Store agent response in memory if possible
-        if agent.tool_registry:
-            try:
-                agent.call_tool(
-                    tool_name="MemoryTool",
-                    method_name="store_message",
-                    thread_id=thread_id,
-                    sender=agent.agent_name,
-                    content=response
-                )
-            except Exception as e:
-                print(f"Error storing agent response: {e}")
+        EphemeralMemory.store_message(thread_id=thread_id, sender=agent.agent_name, content=response)
 
         return response

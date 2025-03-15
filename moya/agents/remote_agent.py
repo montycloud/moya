@@ -11,12 +11,11 @@ from moya.agents.base_agent import Agent, AgentConfig
 
 
 @dataclass
-class RemoteAgentConfig:
+class RemoteAgentConfig(AgentConfig):
     """Configuration for RemoteAgent, separate from AgentConfig to avoid inheritance issues"""
-    base_url: str
-    auth_token: Optional[str] = None
+    base_url: str = None
     verify_ssl: bool = True
-    system_prompt: Optional[str] = None
+    auth_token: Optional[str] = None
 
 
 class RemoteAgent(Agent):
@@ -26,11 +25,7 @@ class RemoteAgent(Agent):
 
     def __init__(
         self,
-        agent_name: str,
-        description: str,
-        config: Optional[Dict[str, Any]] = None,
-        tool_registry: Optional[Any] = None,
-        agent_config: Optional[RemoteAgentConfig] = None,
+        config=RemoteAgentConfig
     ):
         """
         Initialize a RemoteAgent.
@@ -41,29 +36,23 @@ class RemoteAgent(Agent):
         :param tool_registry: Optional ToolRegistry for tool support
         :param agent_config: Optional configuration for the RemoteAgent
         """
-        super().__init__(
-            agent_name=agent_name,
-            agent_type="RemoteAgent",
-            description=description,
-            config=config,
-            tool_registry=tool_registry
-        )
-        if not agent_config:
-            raise ValueError("RemoteAgentConfig is required")
-            
-        self.agent_config = agent_config
-        self.base_url = agent_config.base_url.rstrip('/')
-        self.system_prompt = agent_config.system_prompt
+        super().__init__(config=config)
+
+        if not config.base_url:
+            raise ValueError("RemoteAgent base URL is required.")
+                   
+        self.base_url = config.base_url.rstrip('/')
+        self.system_prompt = config.system_prompt
         self.session = requests.Session()
         
         # Configure authentication if provided
-        if agent_config.auth_token:
+        if config.auth_token:
             self.session.headers.update({
-                "Authorization": f"Bearer {agent_config.auth_token}"
+                "Authorization": f"Bearer {config.auth_token}"
             })
         
         # Configure SSL verification
-        self.session.verify = agent_config.verify_ssl
+        self.session.verify = config.verify_ssl
 
     def setup(self) -> None:
         """

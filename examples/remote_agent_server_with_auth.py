@@ -1,5 +1,6 @@
 import asyncio
 import uvicorn
+import os
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
@@ -9,7 +10,7 @@ from typing import Optional, Dict, Any
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
-from moya.tools.memory_tool import MemoryTool
+from moya.tools.ephemeral_memory import EphemeralMemory
 
 app = FastAPI()
 security = HTTPBearer()
@@ -37,25 +38,25 @@ class Message(BaseModel):
 def setup_agent():
     """Set up OpenAI agent with memory capabilities."""
     # Set up memory components
-    memory_repo = InMemoryRepository()
-    memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
-    tool_registry.register_tool(memory_tool)
+    EphemeralMemory.configure_memory_tools(tool_registry)
 
     # Create and setup agent
     agent_config = OpenAIAgentConfig(
-        system_prompt="You are a secure remote agent that requires authentication.",
-        model_name="gpt-4o"
+        agent_name="remote_joke_agent",
+        agent_type="RemoteAgent",
+        description="Remote agent specialized in humor",
+        system_prompt="You are a remote agent that specializes in telling jokes and being entertaining.",
+        api_key=os.getenv("OPENAI_API_KEY"),
+        tool_registry=tool_registry,
+        model_name="gpt-4o",
+        llm_config={
+            'temperature':0.8,
+            'max_tokens':1000
+        }
     )
-
-    agent = OpenAIAgent(
-        agent_name="secure_remote_agent",
-        description="Authenticated remote agent",
-        agent_config=agent_config,
-        tool_registry=tool_registry
-    )
-    agent.setup()
-    return agent
+    return OpenAIAgent(agent_config)
+   
 
 
 # Initialize agent at startup
@@ -70,25 +71,39 @@ async def health_check():
 
 @app.post("/chat", dependencies=[Depends(verify_token)])
 async def chat(request: Request):
-    """Protected chat endpoint."""
+    """Handle normal chat requests using OpenAI agent."""
     data = await request.json()
     message = data['message']
     thread_id = data.get('thread_id', 'default_thread')
 
+    # Store user message
+    EphemeralMemory.store_message(thread_id=thread_id, sender="user", content=message)
+
+    # Get response from agent
     response = agent.handle_message(message, thread_id=thread_id)
+
+    # Store agent response
+    EphemeralMemory.store_message(thread_id=thread_id, sender=agent.agent_name, content=response)
+    
     return {"response": response}
 
 
 @app.post("/chat/stream", dependencies=[Depends(verify_token)])
 async def chat_stream(request: Request):
-    """Protected streaming chat endpoint."""
+    """Handle streaming chat requests using OpenAI agent."""
     data = await request.json()
     message = data['message']
     thread_id = data.get('thread_id', 'default_thread')
 
     return StreamingResponse(
         stream_response(message, thread_id),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+            "Transfer-Encoding": "chunked"
+        }
     )
 
 
