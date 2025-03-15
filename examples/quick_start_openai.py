@@ -8,6 +8,7 @@ from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.tools.ephemeral_memory import EphemeralMemory
+from moya.memory.file_system_repo import FileSystemRepository
 import os
 import json
 from examples.quick_tools import QuickTools
@@ -17,7 +18,7 @@ from moya.tools.base_tool import BaseTool
 def setup_agent():
     # Set up memory components
     tool_registry = ToolRegistry()
-
+    # EphemeralMemory.memory_repository = FileSystemRepository(base_path="/Users/kannan/tmp/moya_memory")
     EphemeralMemory.configure_memory_tools(tool_registry)
     tool_registry.register_tool(BaseTool(name="ConversationContext", function=QuickTools.get_conversation_context))
 
