@@ -8,7 +8,6 @@ from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.tools.ephemeral_memory import EphemeralMemory
-from moya.memory.file_system_repo import FileSystemRepository
 import os
 from examples.quick_tools import QuickTools
 from moya.tools.base_tool import BaseTool
