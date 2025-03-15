@@ -106,10 +106,7 @@ class OpenAIAgent(Agent):
         Returns:
             str: Final response after tool call processing.
         """
-        conversation = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": user_message}
-        ]
+        conversation = [{"role": "user", "content": user_message}]
         iteration = 0
 
         while iteration < self.max_iterations:
