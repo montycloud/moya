@@ -9,6 +9,7 @@ from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.tools.ephemeral_memory import EphemeralMemory
 import os
+import json
 from examples.quick_tools import QuickTools
 from moya.tools.base_tool import BaseTool
 
@@ -60,7 +61,7 @@ def format_conversation_context(messages):
 
 def main():
     orchestrator, agent = setup_agent()
-    thread_id = QuickTools.get_conversation_context()["thread_id"]
+    thread_id = json.loads(QuickTools.get_conversation_context())["thread_id"]
     # EphemeralMemory.store_message(thread_id=thread_id, sender="system", content=f"Starting conversation, thread ID: {thread_id}")
 
     print("Welcome to Interactive Chat! (Type 'quit' or 'exit' to end)")
