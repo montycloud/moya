@@ -38,7 +38,7 @@ awsbedrock = [
 
 crewai = [
   "crewai>=0.100.1",
-  "crewai-tools>=0.33.0
+  "crewai-tools>=0.33.0"
 ]
 
 ollama = [
