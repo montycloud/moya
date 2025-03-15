@@ -8,11 +8,11 @@ from moya.conversation.thread import Thread
 from moya.tools.base_tool import BaseTool
 from moya.tools.ephemeral_memory import EphemeralMemory
 from moya.tools.tool_registry import ToolRegistry
-from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.azure_openai_agent import AzureOpenAIAgent, AzureOpenAIAgentConfig
 from moya.conversation.message import Message
+
 
 
 def reverse_text(text: str) -> str:
@@ -99,6 +99,7 @@ def setup_agent():
         """,
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),  # Use default OpenAI API base
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION") or "2024-12-01-preview",
         organization=None  # Use default organization
     )
 
