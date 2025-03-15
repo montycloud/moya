@@ -14,6 +14,23 @@ Preprint of the paper can be accessed at [arXiv](https://arxiv.org/abs/2501.0824
 
 ## Getting Started
 
+```bash
+pip install moya  # Only core framework
+pip install moya[all] # All the supported services such as OpenAI, Bedrock, Ollama, Crewai
+# or install specific ones - for example openai and ollama
+pip install moya[openai, ollama]
+```
+
+
+# Contributing to MOYA
+
+We accept contributions exclusively through forked repositories. Please follow these steps:
+
+1. Fork this repository to your GitHub account
+2. Create a new branch in your fork for your changes
+3. Make your changes and commit them to your branch
+4. Submit a pull request from your fork's branch to our main repository
+
 ### Prerequisites
 
 - Python 3.10+
