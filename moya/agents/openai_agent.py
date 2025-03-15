@@ -97,7 +97,7 @@ class OpenAIAgent(Agent):
         """
         Calls OpenAI ChatCompletion to handle the user's message with streaming support.
         """
-        self.run_chat(message)
+        return self.run_chat(message)
 
     def run_chat(self, user_message):
         """
@@ -114,7 +114,6 @@ class OpenAIAgent(Agent):
 
         while iteration < self.max_iterations:
             message = self.get_response(conversation)
-            
             # Extract message content
             if isinstance(message, dict):
                 content = message.get("content", "")
@@ -177,7 +176,6 @@ class OpenAIAgent(Agent):
                 if delta:
                     if delta.content is not None:
                         response_text += delta.content
-                        print(delta.content, end="", flush=True)
                         
                     if delta.tool_calls:
                         for tool_call_delta in delta.tool_calls:
@@ -203,7 +201,6 @@ class OpenAIAgent(Agent):
                                         tool_call_delta.function.arguments
                                     )
             
-            print()  # New line after streaming output
             result = {"content": response_text}
             if tool_calls:
                 result["tool_calls"] = tool_calls
