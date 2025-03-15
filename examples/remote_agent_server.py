@@ -4,12 +4,12 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import asyncio
 import uvicorn
+import os
 from asyncio import CancelledError
 
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
-from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
-from moya.tools.memory_tool import MemoryTool
+from moya.tools.ephemeral_memory import EphemeralMemory
 
 
 app = FastAPI()
@@ -24,27 +24,25 @@ class Message(BaseModel):
 def setup_agent():
     """Set up OpenAI agent with memory capabilities."""
     # Set up memory components
-    memory_repo = InMemoryRepository()
-    memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
-    tool_registry.register_tool(memory_tool)
+    EphemeralMemory.configure_memory_tools(tool_registry)
 
     # Create and setup agent
     agent_config = OpenAIAgentConfig(
-        system_prompt="You are a remote agent that specializes in telling jokes and being entertaining.",
-        model_name="gpt-4o",
-        temperature=0.8,
-        max_tokens=1000
-    )
-
-    agent = OpenAIAgent(
         agent_name="remote_joke_agent",
+        agent_type="RemoteAgent",
         description="Remote agent specialized in humor",
-        agent_config=agent_config,
-        tool_registry=tool_registry
+        system_prompt="You are a remote agent that specializes in telling jokes and being entertaining.",
+        api_key=os.getenv("OPENAI_API_KEY"),
+        tool_registry=tool_registry,
+        model_name="gpt-4o",
+        llm_config={
+            'temperature':0.8,
+            'max_tokens':1000
+        }
     )
-    agent.setup()
-    return agent
+    return OpenAIAgent(agent_config)
+   
 
 
 # Initialize agent at startup
@@ -64,35 +62,15 @@ async def chat(request: Request):
     message = data['message']
     thread_id = data.get('thread_id', 'default_thread')
 
-    # Store user message if memory tool is available
-    if agent.tool_registry:
-        try:
-            agent.call_tool(
-                tool_name="MemoryTool",
-                method_name="store_message",
-                thread_id=thread_id,
-                sender="user",
-                content=message
-            )
-        except Exception as e:
-            print(f"Error storing user message: {e}")
+    # Store user message
+    EphemeralMemory.store_message(thread_id=thread_id, sender="user", content=message)
 
     # Get response from agent
     response = agent.handle_message(message, thread_id=thread_id)
 
-    # Store agent response if memory tool is available
-    if agent.tool_registry:
-        try:
-            agent.call_tool(
-                tool_name="MemoryTool",
-                method_name="store_message",
-                thread_id=thread_id,
-                sender=agent.agent_name,
-                content=response
-            )
-        except Exception as e:
-            print(f"Error storing agent response: {e}")
-
+    # Store agent response
+    EphemeralMemory.store_message(thread_id=thread_id, sender=agent.agent_name, content=response)
+    
     return {"response": response}
 
 
@@ -107,14 +85,7 @@ async def stream_response(message: str, thread_id: str):
 
     try:
         # Store user message
-        if agent.tool_registry:
-            agent.call_tool(
-                tool_name="MemoryTool",
-                method_name="store_message",
-                thread_id=thread_id,
-                sender="user",
-                content=message
-            )
+        EphemeralMemory.store_message(thread_id=thread_id, sender="user", content=message)
 
         # Stream response
         for chunk in agent.handle_message_stream(message, thread_id=thread_id):
@@ -141,15 +112,7 @@ async def stream_response(message: str, thread_id: str):
             yield await send_chunk(current_text)
 
         # Store complete response
-        if agent.tool_registry and response_text:
-            agent.call_tool(
-                tool_name="MemoryTool",
-                method_name="store_message",
-                thread_id=thread_id,
-                sender=agent.agent_name,
-                content=response_text
-            )
-
+        EphemeralMemory.store_message(thread_id=thread_id, sender=agent.agent_name, content=response_text)
     except CancelledError:
         if response_text:  # Only log if we actually got some response
             print(f"Client disconnected, stored partial response of length: {len(response_text)}")

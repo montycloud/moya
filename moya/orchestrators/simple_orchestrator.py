@@ -66,41 +66,18 @@ class SimpleOrchestrator(BaseOrchestrator):
         if not agent:
             return "[No suitable agent found to handle message.]"
 
-        # 2. We could store the incoming user message in memory via a MemoryTool (optional):
-        #    If agent.tool_registry is available, we can call a MemoryTool method to store the user's message.
-        if agent.tool_registry:
-            try:
-                agent.call_tool(
-                    tool_name="MemoryTool",
-                    method_name="store_message",
-                    thread_id=thread_id,
-                    sender="user",
-                    content=user_message
-                )
-            except Exception as e:
-                print(f"Error storing user message: {e}")
-
         # 3. Let the agent handle the message with streaming support
         if stream_callback:
             response = ""
-            for chunk in agent.handle_message_stream(user_message, thread_id=thread_id, **kwargs):
+            message_stream = agent.handle_message_stream(user_message, thread_id=thread_id, **kwargs)
+            if message_stream is None:
+                message_stream = []
+
+            for chunk in message_stream:
                 stream_callback(chunk)
                 response += chunk
         else:
             response = agent.handle_message(user_message, thread_id=thread_id, **kwargs)
-
-        # 4. Store the agent's response in memory (optional)
-        if agent.tool_registry:
-            try:
-                agent.call_tool(
-                    tool_name="MemoryTool",
-                    method_name="store_message",
-                    thread_id=thread_id,
-                    sender=agent.agent_name,
-                    content=response
-                )
-            except Exception as e:
-                print(f"Error storing agent response: {e}")
 
         # 5. Return the agent's response
         return response

@@ -11,15 +11,6 @@ from dataclasses import dataclass
 from moya.agents.base_agent import Agent, AgentConfig
 
 
-@dataclass
-class OllamaAgentConfig(AgentConfig):
-    base_url: str = "http://localhost:11434"
-    model_name: str = "llama2"
-    context_window: int = 4096
-    num_ctx: int = 4096
-    repeat_penalty: float = 1.1
-
-
 class OllamaAgent(Agent):
     """
     A simple Ollama-based agent that uses the local Ollama API.
@@ -27,41 +18,21 @@ class OllamaAgent(Agent):
 
     def __init__(
         self,
-        agent_name: str,
-        description: str,
-        config: Optional[Dict[str, Any]] = None,
-        tool_registry: Optional[Any] = None,
-        agent_config: Optional[OllamaAgentConfig] = None
+        agent_config: AgentConfig
     ):
         """
-        :param agent_name: Unique name or identifier for the agent.
-        :param description: A brief explanation of the agent's capabilities.
-        :param config: Optional config dict (unused by default).
-        :param tool_registry: Optional ToolRegistry to enable tool calling.
-        :param agent_config: Optional OllamaAgentConfig instance.
+        :param agent_config: AgentConfig configuration details for Ollama Agent.
         """
-        super().__init__(
-            agent_name=agent_name,
-            agent_type="OllamaAgent",
-            description=description,
-            config=config,
-            tool_registry=tool_registry
-        )
-        self.agent_config = agent_config or OllamaAgentConfig()
-        self.system_prompt = self.agent_config.system_prompt
-        self.base_url = self.agent_config.base_url
-        self.model_name = self.agent_config.model_name
-
-    def setup(self) -> None:
-        """
-        Verify Ollama server is accessible.
-        """
+        super().__init__(agent_config)
+        self.base_url = self.llm_config["base_url"] or ""
+        self.model_name = self.llm_config["model_name"] or "llama3.1"
         try:
             response = requests.get(f"{self.base_url}/api/tags")
             if response.status_code != 200:
                 raise ConnectionError("Unable to connect to Ollama server")
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Ollama server: {str(e)}")
+
 
     def handle_message(self, message: str, **kwargs) -> str:
         """

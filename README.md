@@ -29,7 +29,7 @@ Preprint of the paper can be accessed at [arXiv](https://arxiv.org/abs/2501.0824
 Interactive chat example using OpenAI agent with conversation memory.
 
 ```python
-# filepath: /Users/kannan/src/github/moya/examples/quick_start_openai.py
+# filepath: ~/github/moya/examples/quick_start_openai.py
 
 python -m examples.quick_start_openai
 
@@ -40,7 +40,7 @@ python -m examples.quick_start_openai
 Interactive chat example using BedrockAgent with conversation memory.
 
 ```python
-# filepath: /Users/kannan/src/github/moya/examples/quick_start_bedrock.py
+# filepath: ~/github/moya/examples/quick_start_bedrock.py
 
 AWS_PROFILE=my_profile_name python -m examples.quick_start_bedrock
 ```
@@ -50,7 +50,7 @@ AWS_PROFILE=my_profile_name python -m examples.quick_start_bedrock
 Example demonstrating multi-agent orchestration with language and task classification.
 
 ```python
-# filepath: /Users/kannan/src/github/moya/examples/quick_start_multiagent.py
+# filepath: ~/github/moya/examples/quick_start_multiagent.py
 
 python -m examples.quick_start_multiagent
 ```
@@ -61,7 +61,7 @@ Example demonstrating dynamic agent creation and registration during runtime.
 ![moya](./media/Dynamic_Agents.mov)
 
 ```python
-# filepath: /Users/kannan/src/github/moya/examples/dynamic_agents.py
+# filepath: ~/github/moya/examples/dynamic_agents.py
 
 
 python -m examples.dynamic_agents

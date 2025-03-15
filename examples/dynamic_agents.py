@@ -1,8 +1,9 @@
 """
 Example demonstrating dynamic agent creation and registration during runtime.
 """
-
+import os
 from typing import Dict, Any
+from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.classifiers.llm_classifier import LLMClassifier
 from moya.orchestrators.multi_agent_orchestrator import MultiAgentOrchestrator
@@ -10,38 +11,46 @@ from moya.registry.agent_registry import AgentRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
-
+from moya.tools.base_tool import BaseTool
+from moya.tools.ephemeral_memory import EphemeralMemory 
 
 def setup_memory_components():
     """Set up shared memory components."""
-    memory_repo = InMemoryRepository()
-    memory_tool = MemoryTool(memory_repository=memory_repo)
+   # memory_repo = InMemoryRepository()
+   # memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
-    tool_registry.register_tool(memory_tool)
+    EphemeralMemory.configure_memory_tools(tool_registry)
+    tool_registry.register_tool(BaseTool(name="ReverseTool", function=reverse_text_tool))
     return tool_registry
 
+def reverse_text_tool(text: str) -> str:
+    """Tool to reverse characters in a given text input.
+    
+    Parameters:
+        - text: Text to echo
+    """
+    return text[::-1]
 
 def create_initial_classifier() -> OpenAIAgent:
     """Create the initial classifier with basic routing."""
-    classifier_config = OpenAIAgentConfig(
-        system_prompt="""You are a classifier that routes messages to appropriate agents.
-        Given a user message and list of available specialized agents, select the most appropriate agent.
-        Currently available agents:
-        - english_agent: Default agent that responds in English
-        
-        If the message starts with 'Create new agent', return 'CREATOR' as this requires agent creation.
-        Otherwise, return the most appropriate agent name from the available agents list.
-        Return only the agent name, nothing else.""",
-        model_name="gpt-4o",
-        temperature=0.7
-    )
-
-    agent = OpenAIAgent(
+    system_prompt = """You are a classifier that routes messages to appropriate agents.
+    Given a user message and list of available specialized agents, select the most appropriate agent.
+    Currently available agents:
+    - english_agent: Default agent that responds in English
+    
+    If the message starts with 'Create new agent', return 'CREATOR' as this requires agent creation.
+    Otherwise, return the most appropriate agent name from the available agents list.
+    Return only the agent name, nothing else."""
+    classifier_config  = OpenAIAgentConfig(
         agent_name="classifier",
+        agent_type="OpenAIAgent",
         description="Dynamic message router",
-        agent_config=classifier_config
+        system_prompt=system_prompt,
+        model_name="gpt-4o",
+       # tool_registry=setup_memory_components(),
+        api_key=os.getenv("OPENAI_API_KEY")
     )
-    agent.setup()
+    agent = OpenAIAgent(config=classifier_config)    
     return agent
 
 
@@ -68,19 +77,19 @@ def create_new_agent(tool_registry, agents_info: Dict[str, Dict[str, Any]]) -> O
     agent_name = input("Enter agent name: ").strip()
     description = input("Enter agent description: ").strip()
     system_prompt = input("Enter system prompt: ").strip()
-
-    agent_config = OpenAIAgentConfig(
-        system_prompt=system_prompt
-    )
-
-    agent = OpenAIAgent(
+    
+    config = OpenAIAgentConfig(
         agent_name=agent_name,
+        agent_type="OpenAIAgent",
         description=description,
-        agent_config=agent_config,
-        tool_registry=tool_registry
+        system_prompt= system_prompt,
+        model_name= "gpt-4o",
+        tool_registry= tool_registry,
+        api_key = os.getenv("OPENAI_API_KEY")
     )
-    agent.setup()
 
+    agent = OpenAIAgent(config=config)
+    
     # Store agent info for classifier updates
     agents_info[agent_name] = {
         "description": description,
@@ -103,19 +112,20 @@ def main():
     # Set up initial components
     tool_registry = setup_memory_components()
     registry = AgentRegistry()
+    
+    config = OpenAIAgentConfig(
+        agent_name="english_agent",
+        agent_type="OpenAIAgent",
+        description="Default English language agent",
+        system_prompt="You are a helpful assistant that responds in English. You have access to the following tools, use them to complete your response if needed.",
+        model_name="gpt-4o",
+        tool_registry=tool_registry,
+        tool_choice="auto",
+        api_key=os.getenv("OPENAI_API_KEY")
+    )
 
     # Create and register initial English agent
-    english_config = OpenAIAgentConfig(
-        system_prompt="You are a helpful assistant that responds in English."
-    )
-
-    english_agent = OpenAIAgent(
-        agent_name="english_agent",
-        description="Default English language agent",
-        agent_config=english_config,
-        tool_registry=tool_registry
-    )
-    english_agent.setup()
+    english_agent = OpenAIAgent(config=config)
     registry.register_agent(english_agent)
 
     # Store agent information for classifier updates
@@ -150,6 +160,10 @@ def main():
             print("\nGoodbye!")
             break
 
+        if user_message.lower() == 'tool':
+            english_agent.handle_message("Call memory tool")
+            continue
+        
         # Check if this is a request to create a new agent
         if user_message.lower().startswith('create new agent'):
             new_agent = create_new_agent(tool_registry, agents_info)
@@ -165,7 +179,7 @@ def main():
             continue
 
         # Get the last used agent or default to the first one
-        last_agent = registry.get_agent(agents[0])
+        last_agent = registry.get_agent(agents[0].name)
 
         # Store the user message first
         if last_agent.tool_registry:

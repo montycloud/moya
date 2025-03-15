@@ -16,6 +16,7 @@ MANIFEST
 
 # git
 .git/
+.github/
 
 # venv
 venv/

@@ -3,40 +3,42 @@ Interactive chat example using OpenAI agent with conversation memory.
 """
 
 import os
-from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
-from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
+from moya.tools.ephemeral_memory import EphemeralMemory
+from moya.memory.file_system_repo import FileSystemRepository
+import os
+import json
+from examples.quick_tools import QuickTools
+from moya.tools.base_tool import BaseTool
 
 
 def setup_agent():
     # Set up memory components
-    memory_repo = InMemoryRepository()
-    memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
-    tool_registry.register_tool(memory_tool)
+    # EphemeralMemory.memory_repository = FileSystemRepository(base_path="/Users/kannan/tmp/moya_memory")
+    EphemeralMemory.configure_memory_tools(tool_registry)
+    tool_registry.register_tool(BaseTool(name="ConversationContext", function=QuickTools.get_conversation_context))
 
-    # Create agent configuration
-    agent_config = OpenAIAgentConfig(
-        system_prompt="You are a helpful AI assistant specialized in engaging conversations.",
-        model_name="gpt-4o",
-        temperature=0.7,
-        max_tokens=2000,
+    config = OpenAIAgentConfig(
+        agent_name="chat_agent",
+        description="An interactive chat agent",
         api_key=os.getenv("OPENAI_API_KEY"),
-        api_base=None,  # Use default OpenAI API base
-        organization=None  # Use default organization
+        model_name="gpt-4o",
+        agent_type="ChatAgent",
+        tool_registry=tool_registry,
+        is_streaming=True,
+        system_prompt="You are an interactive chat agent that can remember previous conversations. "
+                    "You have access to tools that helps you to store and retrieve conversation history."
+                    "Use the conversation history for your reference in answering any ueser query."
+                    "Be Helpful and polite in your responses, and be concise and clear."
+                     "Be useful but do not provide any information unless asked.",
     )
 
     # Create OpenAI agent with memory capabilities
-    agent = OpenAIAgent(
-        agent_name="chat_agent",
-        description="An interactive chat agent with memory",
-        agent_config=agent_config,
-        tool_registry=tool_registry
-    )
-    agent.setup()
+    agent = OpenAIAgent(config)
 
     # Set up registry and orchestrator
     agent_registry = AgentRegistry()
@@ -60,7 +62,8 @@ def format_conversation_context(messages):
 
 def main():
     orchestrator, agent = setup_agent()
-    thread_id = "interactive_chat_001"
+    thread_id = json.loads(QuickTools.get_conversation_context())["thread_id"]
+    # EphemeralMemory.store_message(thread_id=thread_id, sender="system", content=f"Starting conversation, thread ID: {thread_id}")
 
     print("Welcome to Interactive Chat! (Type 'quit' or 'exit' to end)")
     print("-" * 50)
@@ -74,24 +77,11 @@ def main():
             print("\nGoodbye!")
             break
 
-        # Store the user message first
-        agent.call_tool(
-            tool_name="MemoryTool",
-            method_name="store_message",
-            thread_id=thread_id,
-            sender="user",
-            content=user_input
-        )
-
-        # Get conversation context
-        previous_messages = agent.get_last_n_messages(thread_id, n=5)
-
-        # Add context to the user's message if there are previous messages
-        if previous_messages:
-            context = format_conversation_context(previous_messages)
-            enhanced_input = f"{context}\nCurrent user message: {user_input}"
-        else:
-            enhanced_input = user_input
+        # Store user message
+        EphemeralMemory.store_message(thread_id=thread_id, sender="user", content=user_input)
+    
+        session_summary = EphemeralMemory.get_thread_summary(thread_id)
+        enriched_input = f"{session_summary}\nCurrent user message: {user_input}"
 
         # Print Assistant prompt
         print("\nAssistant: ", end="", flush=True)
@@ -103,21 +93,15 @@ def main():
         # Get response using stream_callback
         response = orchestrator.orchestrate(
             thread_id=thread_id,
-            user_message=enhanced_input,
+            user_message=enriched_input,
             stream_callback=stream_callback
         )
 
+        # print(response)
+
+        EphemeralMemory.store_message(thread_id=thread_id, sender="assistant", content=response)
         # Print newline after response
         print()
-
-        # Store the assistant's response
-        agent.call_tool(
-            tool_name="MemoryTool",
-            method_name="store_message",
-            thread_id=thread_id,
-            sender="assistant",
-            content=response
-        )
 
 
 if __name__ == "__main__":

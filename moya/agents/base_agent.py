@@ -19,23 +19,40 @@ Agents can:
 import abc
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
-
-
+from moya.tools.base_tool import BaseTool
+from moya.tools.tool_registry import ToolRegistry
+from moya.memory.base_repository import BaseMemoryRepository
 @dataclass
 class AgentConfig:
-    """Base configuration class for agents"""
+    """
+    Configuration data for an agent.
+    """
+    agent_name: str
+    agent_type: str
+    description: str
     system_prompt: str = "You are a helpful AI assistant."
-    model_name: str = "default"
-    temperature: float = 0.7
-    max_tokens: int = 2000
-    top_p: float = 1.0
-    frequency_penalty: float = 0.0
-    presence_penalty: float = 0.0
-    stop_sequences: list = None
+    llm_config: Optional[Dict[str, Any]] = None
+    tool_registry: Optional[ToolRegistry] = None
+    memory: Optional[BaseMemoryRepository] = None
+    is_tool_caller: bool = False
+    is_streaming: bool = False
 
     def __post_init__(self):
-        if self.stop_sequences is None:
-            self.stop_sequences = []
+        if not self.agent_name:
+            raise ValueError("Agent name must be provided.")
+        if not self.description:
+            raise ValueError("Agent description must be provided.")
+        default_llm_config = {
+                'model_name': "default",
+                'temperature': 0.7,
+                'max_tokens':  2000,
+                'top_p': 1.0,
+                'frequency_penalty': 0.0,
+                'presence_penalty': 0.0,
+                'stop_sequences':  [],
+        }
+        self.llm_config = {**default_llm_config, **(self.llm_config or {})}
+
 
 
 class Agent(abc.ABC):
@@ -56,12 +73,7 @@ class Agent(abc.ABC):
 
     def __init__(
         self,
-        agent_name: str,
-        agent_type: str,
-        description: str,
-        config: Optional[Dict[str, Any]] = None,
-        agent_config: Optional[AgentConfig] = None,
-        tool_registry: Optional[Any] = None
+        config: AgentConfig
     ):
         """
         Initialize the agent with:
@@ -79,26 +91,16 @@ class Agent(abc.ABC):
         :param agent_config: Optional AgentConfig object with model parameters.
         :param tool_registry: A reference to a centralized ToolRegistry (if any).
         """
-        self.agent_name = agent_name
-        self.agent_type = agent_type
-        self.description = description
-        self.config = config or {}
-        self.agent_config = agent_config or AgentConfig()
-        self.system_prompt = self.agent_config.system_prompt
-        self.tool_registry = tool_registry
-
-    @abc.abstractmethod
-    def setup(self) -> None:
-        """
-        Perform any necessary initialization or setup steps before
-        the agent starts handling messages.
-
-        Examples:
-            - Establishing an API connection
-            - Authenticating
-            - Loading local resources or models
-        """
-        pass
+        self.agent_name = config.agent_name
+        self.agent_type = config.agent_type
+        self.description = config.description
+        self.llm_config = config.llm_config or {}
+        self.tool_registry = config.tool_registry
+        self.system_prompt = config.system_prompt or "You are a helpful AI assistant."
+        self.memory = config.memory
+        self.is_tool_caller = config.is_tool_caller
+        self.is_streaming = config.is_streaming
+        
 
     @abc.abstractmethod
     def handle_message(self, message: str, **kwargs) -> str:
@@ -170,14 +172,10 @@ class Agent(abc.ABC):
         :param thread_id: The identifier of the conversation thread.
         :return: A textual summary of the conversation so far. If no MemoryTool
                  or no registry is found, returns an empty string or raises an error.
-        """
-        if not self.tool_registry:
+        """        
+        if not self.memory:
             return ""
-        return self.call_tool(
-            tool_name="MemoryTool",
-            method_name="get_thread_summary",
-            thread_id=thread_id
-        )
+        return self.memory.get_conversation_summary(thread_id)
 
     def get_last_n_messages(self, thread_id: str, n: int = 5) -> List[Any]:
         """
@@ -187,11 +185,6 @@ class Agent(abc.ABC):
         :param n: The number of recent messages to retrieve.
         :return: A list of message objects or dictionaries.
         """
-        if not self.tool_registry:
-            return []
-        return self.call_tool(
-            tool_name="MemoryTool",
-            method_name="get_last_n_messages",
-            thread_id=thread_id,
-            n=n
-        )
+        if not self.memory:
+            return ""
+        return self.memory.get_last_n_messages(thread_id, n)
