@@ -15,10 +15,10 @@ Preprint of the paper can be accessed at [arXiv](https://arxiv.org/abs/2501.0824
 ## Getting Started
 
 ```bash
-pip install moya  # Only core framework
-pip install moya[all] # All the supported services such as OpenAI, Bedrock, Ollama, Crewai
+pip install moya-ai  # Only core framework
+pip install moya-ai[all] # All the supported services such as OpenAI, Bedrock, Ollama, Crewai
 # or install specific ones - for example openai and ollama
-pip install moya[openai, ollama]
+pip install moya-ai[openai, ollama]
 ```
 
 
