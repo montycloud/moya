@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moya-ai"
-version = "0.1.4"
+version = "0.1.5"
 description = "A reference implementation of the Moya AI framework."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -21,17 +21,40 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
 ]
-dependencies = [
-  "boto3>=1.36.9",
-  "crewai>=0.100.1",
-  "crewai-tools>=0.33.0",
-  "requests>=2.32.3",
-  "openai>=1.60.1",
-  "fastapi>=0.115.7",
-  "uvicorn>=0.34.0",
-  "dotenv>=1.0.1"
+
+requires-python = ">=3.11"
+
+dependencies = []
+
+[project.optional-dependencies]
+
+openai = [
+    "openai>=1.60.1"
 ]
-requires-python = ">=3.11" 
+
+awsbedrock = [
+  "boto3>=1.36.9"
+]
+
+crewai = [
+  "crewai>=0.100.1",
+  "crewai-tools>=0.33.0
+]
+
+ollama = [
+  "requests>=2.32.3",
+]
+
+all = [
+    "boto3>=1.36.9",
+    "crewai>=0.100.1",
+    "crewai-tools>=0.33.0",
+    "requests>=2.32.3",
+    "fastapi>=0.115.7",
+    "uvicorn>=0.34.0",
+    "python-dotenv>=1.0.1"
+]
+
 
 [tool.setuptools]
 packages = [
@@ -44,4 +67,4 @@ packages = [
     "moya.registry",
     "moya.tools",
     "moya.utils"
-    ]
+]
