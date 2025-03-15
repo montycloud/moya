@@ -5,12 +5,13 @@ A tool that interacts with a BaseMemoryRepository to store and retrieve
 conversation data (threads, messages).
 """
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from moya.tools.tool_registry import ToolRegistry
 from moya.tools.base_tool import BaseTool
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.conversation.thread import Thread
 from moya.conversation.message import Message
+import json
 
 
 class EphemeralMemory:
@@ -59,7 +60,7 @@ class EphemeralMemory:
         return f"Message stored in thread {thread_id}."
 
     @staticmethod
-    def get_last_n_messages(thread_id: str, n: int = 5) -> List[Message]:
+    def get_last_n_messages(thread_id: str, n: int = 5) -> str:
         """
         Retrieve the last N messages from the specified thread.
 
@@ -68,9 +69,13 @@ class EphemeralMemory:
             - n: Number of messages to retrieve (default: 5).
         """
         thread = EphemeralMemory.memory_repository.get_thread(thread_id)
-        if not thread:
-            return []
-        return thread.get_last_n_messages(n=n)
+        messages = []
+        if thread:
+            messages = list(thread.get_last_n_messages(n=n))
+        
+        # Return a JSON representation of the messages
+        return json.dumps([message.to_dict() for message in messages])
+    
 
     @staticmethod
     def get_thread_summary(thread_id: str) -> str:
