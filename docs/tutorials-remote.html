@@ -85,26 +85,42 @@ from fastapi.responses import StreamingResponse
     tool_registry = ToolRegistry()
     tool_registry.register_tool(memory_tool)
 
-    # Create and setup agent
-    agent_config = OpenAIAgentConfig(
-        system_prompt="You are a remote agent that specializes in telling jokes and being entertaining.",
-        model_name="gpt-4o",
-        temperature=0.8,
-        max_tokens=1000
-    )
 
-    agent = OpenAIAgent(
+    # Create an agent configuration
+    config = OpenAIAgentConfig(
+        agent_name="chat_agent",
+        description="An interactive chat agent",
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model_name="gpt-4o",
+        agent_type="ChatAgent",
+        tool_registry=tool_registry,
+        is_streaming=True,
+        system_prompt="You are an interactive chat agent that can remember previous conversations. "
+                    "You have access to tools that helps you to store and retrieve conversation history."
+                    "Use the conversation history for your reference in answering any ueser query."
+                    "Be Helpful and polite in your responses, and be concise and clear."
+                        "Be useful but do not provide any information unless asked.",
+    )
+    # Initialize the agent
+    agent = OpenAIAgent(config)
+
+    # Send a message and get a response
+    response = agent.handle_message("Hello, how can you help me?")
+
+
+    remote_agent_config = OpenAIAgentConfig(
         agent_name="remote_joke_agent",
         description="Remote agent specialized in humor",
-        agent_config=agent_config,
-        tool_registry=tool_registry
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model_name="gpt-4o",
+        agent_type="ChatAgent",
+        tool_registry=tool_registry,
+        is_streaming=True,
+        system_prompt="You are an interactive chat joke agent that can remember previous conversations.",
     )
-    agent.setup()
+
+    agent = OpenAIAgent(remote_agent_config)
     return agent
-
-
-# Initialize agent at startup
-agent = setup_agent()
 </code></pre>
             </div>
 

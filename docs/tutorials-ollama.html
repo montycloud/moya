@@ -62,6 +62,7 @@ from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.tools.tool_registry import ToolRegistry
 from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
+from moya.agents.base_agent import AgentConfig
 </code></pre>
             </div>
 
@@ -80,24 +81,21 @@ from moya.registry.agent_registry import AgentRegistry
     tool_registry.register_tool(memory_tool)
 
     # Create Ollama agent with memory capabilities and correct configuration
-    agent_config = OllamaAgentConfig(
-        system_prompt="You are a helpful AI assistant. Be concise and clear.",
-        model_name="llama3.1",
-        temperature=0.7,
-        base_url="http://localhost:11434",
-        context_window=4096
-    )
-
-    agent = OllamaAgent(
+    agent_config = AgentConfig(
         agent_name="ollama_assistant",
+        agent_type="ChatAgent",
         description="A local AI assistant powered by Ollama with memory",
-        agent_config=agent_config,
-        tool_registry=tool_registry
+        system_prompt="You are a helpful AI assistant. Be concise and clear.",
+        tool_registry=tool_registry,
+        llm_config={
+            'model_name':"llama3.1:latest",
+            'temperature':0.7,
+            'base_url':"http://localhost:11434",
+            'context_window':4096
+        }
     )
 
-    # Verify Ollama connection with simple test request
-    try:
-        agent.setup()
+    agent = OllamaAgent(agent_config)
         # Test connection using handle_message
         test_response = agent.handle_message("test connection")
         if not test_response:
