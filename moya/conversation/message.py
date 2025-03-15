@@ -5,10 +5,8 @@ Represents a single message within a conversation thread.
 """
 
 from datetime import datetime
-from typing import Optional
-from typing import Dict, Any
-from uuid import uuid4
-
+import json
+from typing import Optional, Dict, Any, Union
 
 class Message:
     """
@@ -19,7 +17,8 @@ class Message:
         thread_id (str): The ID of the thread this message belongs to.
         sender (str): The name/identifier of whoever sent the message
                       (e.g., "user", "system", "agent_name").
-        content (str): The text content of the message.
+        content (Union[str, list, dict]): The content of the message, can be a string
+                                          or structured content.
         timestamp (datetime): When the message was created.
         metadata (dict): Any additional structured data for this message 
                          (e.g., role info, model parameters, etc.).
@@ -29,15 +28,12 @@ class Message:
         self,
         thread_id: str,
         sender: str,
-        content: str,
+        content: Union[str, list, dict],
         message_id: Optional[str] = None,
         timestamp: Optional[datetime] = None,
         metadata: Optional[dict] = None
     ):
         self.message_id = message_id
-        if not message_id:
-            # Generate a GUID for message ID if not provided
-            self.message_id = str(uuid4())
         self.thread_id = thread_id
         self.sender = sender
         self.content = content
@@ -60,9 +56,17 @@ class Message:
         """
         Convert the Message object into a JSON-serializable dictionary.
         """
+        # Format content based on its type
+        if isinstance(self.content, str):
+            formatted_content = self.content
+        elif isinstance(self.content, (list, dict)):
+            formatted_content = self.content
+        else:
+            formatted_content = str(self.content)
+            
         return {
             "role": self.sender.lower(),  # Ensure role is lowercase
-            "content": [{"type": "text", "text": self.content}],  # Structured content
+            "content": formatted_content,  # Use the content as-is
             "timestamp": self.timestamp.isoformat(),  # Convert datetime to string
             "metadata": self.metadata  # Keep metadata as-is
         }
