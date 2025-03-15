@@ -7,6 +7,7 @@ Represents a single message within a conversation thread.
 from datetime import datetime
 from typing import Optional
 from typing import Dict, Any
+from uuid import uuid4
 
 
 class Message:
@@ -34,6 +35,9 @@ class Message:
         metadata: Optional[dict] = None
     ):
         self.message_id = message_id
+        if not message_id:
+            # Generate a GUID for message ID if not provided
+            self.message_id = str(uuid4())
         self.thread_id = thread_id
         self.sender = sender
         self.content = content

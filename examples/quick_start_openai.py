@@ -8,13 +8,18 @@ from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.openai_agent import OpenAIAgent, OpenAIAgentConfig
 from moya.tools.ephemeral_memory import EphemeralMemory
+from moya.memory.file_system_repo import FileSystemRepository
 import os
+from examples.quick_tools import QuickTools
+from moya.tools.base_tool import BaseTool
 
 
 def setup_agent():
     # Set up memory components
     tool_registry = ToolRegistry()
+
     EphemeralMemory.configure_memory_tools(tool_registry)
+    tool_registry.register_tool(BaseTool(name="ConversationContext", function=QuickTools.get_conversation_context))
 
     config = OpenAIAgentConfig(
         agent_name="chat_agent",
@@ -56,8 +61,8 @@ def format_conversation_context(messages):
 
 def main():
     orchestrator, agent = setup_agent()
-    thread_id = "interactive_chat_001"
-    EphemeralMemory.store_message(thread_id=thread_id, sender="system", content=f"Starting conversation, thread ID: {thread_id}")
+    thread_id = QuickTools.get_conversation_context()["thread_id"]
+    # EphemeralMemory.store_message(thread_id=thread_id, sender="system", content=f"Starting conversation, thread ID: {thread_id}")
 
     print("Welcome to Interactive Chat! (Type 'quit' or 'exit' to end)")
     print("-" * 50)
@@ -96,8 +101,6 @@ def main():
         EphemeralMemory.store_message(thread_id=thread_id, sender="assistant", content=response)
         # Print newline after response
         print()
-
-
 
 
 if __name__ == "__main__":
