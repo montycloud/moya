@@ -57,8 +57,7 @@ def format_conversation_context(messages):
 def main():
     orchestrator, agent = setup_agent()
     thread_id = "interactive_chat_001"
-    session_memory = EphemeralMemory.memory_repository
-    EphemeralMemory.store_message(thread_id=thread_id, sender="system", content=f"For internal reference only, do not divulge this information. thread ID: {thread_id}")
+    EphemeralMemory.store_message(thread_id=thread_id, sender="system", content=f"Starting conversation, thread ID: {thread_id}")
 
     print("Welcome to Interactive Chat! (Type 'quit' or 'exit' to end)")
     print("-" * 50)
