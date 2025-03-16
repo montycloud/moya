@@ -252,7 +252,12 @@ class OpenAIAgent(Agent):
 
         tool = self.tool_registry.get_tool(name)
         if tool:
-            result = tool.function(**args)
-            return result
+            try:
+                result = tool.function(**args)
+                return result
+            except TypeError:
+                return f"[Tool '{name}' requires arguments: {tool.parameters}]"
+            except Exception as e:
+                return f"[Error executing tool '{name}': {str(e)}]"
 
         return f"[Tool '{name}' not found]"
