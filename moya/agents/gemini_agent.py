@@ -89,23 +89,6 @@ class GeminiAgent(Agent):
             
         return self.conversations[thread_id]
     
-    def handle_message(self, message: str, **kwargs) -> str:
-        """
-        Calls the Gemini API to handle the user's message.
-        """
-        try:
-            # conversation
-            convo = self.model.start_chat(history=[
-                {"role": "user", "parts": [self.system_prompt]}
-            ])
-            
-            # ai's message
-            response = convo.send_message(message)
-            
-            return response.text
-
-        except Exception as e:
-            return f"[GeminiAgent error: {str(e)}]"
 
     def handle_message(self, message: str, **kwargs) -> str:
         """
