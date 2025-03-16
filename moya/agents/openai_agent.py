@@ -43,9 +43,11 @@ class OpenAIAgent(Agent):
         """
         super().__init__(config=config)
         self.model_name = config.model_name
-        if not config.api_key:
+        if not config.api_key and self.__class__.__name__ != "AzureOpenAIAgent":
             raise ValueError("OpenAI API key is required for OpenAIAgent.")
-        self.client = OpenAI(api_key=config.api_key)
+
+        if not self.__class__.__name__ == "AzureOpenAIAgent":
+            self.client = OpenAI(api_key=config.api_key)
         self.system_prompt = config.system_prompt
         self.tool_choice = config.tool_choice if config.tool_choice else None
         self.max_iterations = 5
