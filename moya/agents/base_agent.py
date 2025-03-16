@@ -22,6 +22,9 @@ from dataclasses import dataclass
 from moya.tools.base_tool import BaseTool
 from moya.tools.tool_registry import ToolRegistry
 from moya.memory.base_repository import BaseMemoryRepository
+from moya.monitoring.agent_monitor import AgentHealthMonitor
+from moya.utils.rate_limiter import RateLimiter
+import time
 @dataclass
 class AgentConfig:
     """
@@ -36,6 +39,9 @@ class AgentConfig:
     memory: Optional[BaseMemoryRepository] = None
     is_tool_caller: bool = False
     is_streaming: bool = False
+    rate_limit_max_requests: int = 60
+    rate_limit_window: float = 60.0
+
 
     def __post_init__(self):
         if not self.agent_name:
@@ -100,21 +106,51 @@ class Agent(abc.ABC):
         self.memory = config.memory
         self.is_tool_caller = config.is_tool_caller
         self.is_streaming = config.is_streaming
-        
+
+        self.health_monitor = AgentHealthMonitor()
+        self.rate_limiter = RateLimiter(
+            max_requests=config.rate_limit_max_requests,
+            time_window=config.rate_limit_window
+        )
 
     @abc.abstractmethod
+    def _handle_message_impl(self, message: str, **kwargs) -> str:
+        """
+        Actual message handling implementation to be provided by subclasses.
+        """
+        raise NotImplementedError()
+
     def handle_message(self, message: str, **kwargs) -> str:
         """
+        Enhanced message handling with health monitoring and rate limiting.
+        
         Receive a message (prompt) and generate a response.
 
         :param message: The user or system prompt to be handled.
         :param kwargs: Additional context or parameters the agent might need,
-                       such as conversation ID, user metadata, etc.
+                    such as conversation ID, user metadata, etc.
         :return: The agent's response as a string.
         """
-        raise NotImplementedError("Subclasses must implement handle_message().")
+        if not self.rate_limiter.can_proceed():
+            raise RuntimeError("Rate limit exceeded. Please try again later.")
+            
+        start_time = time.time()
+        try:
+            response = self._handle_message_impl(message, **kwargs)
+            elapsed_time = time.time() - start_time
+            self.health_monitor.record_request(True, elapsed_time)
+            return response
+        except Exception as e:
+            elapsed_time = time.time() - start_time
+            self.health_monitor.record_request(False, elapsed_time, str(e))
+            raise
 
-    @abc.abstractmethod
+    def get_health_metrics(self) -> Dict[str, Any]:
+        """
+        Get current health metrics for the agent.
+        """
+        return self.health_monitor.get_metrics()
+    
     def handle_message_stream(self, message: str, **kwargs):
         """
         Receive a message (prompt) and generate a response in a streaming fashion.
