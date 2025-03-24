@@ -8,7 +8,7 @@ from moya.agents.base_agent import Agent
 class LLMClassifier(BaseClassifier):
     """LLM-based classifier for agent selection."""
 
-    def __init__(self, llm_agent: Agent, default_agent: str):
+    def __init__(self, llm_agent: Agent, default_agent: Optional[str] = None):
         """
         Initialize with an LLM agent for classification.
         

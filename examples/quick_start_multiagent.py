@@ -80,7 +80,7 @@ def create_classifier_agent() -> OpenAIAgent:
         4. For any other language requests, return null
         
         Analyze both the language and intent of the message.
-        Return only the agent name as specified above.""",
+        Return only the agent name as specified above."""
 
     agent_config = OpenAIAgentConfig(
         agent_name="classifier",

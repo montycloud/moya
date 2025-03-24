@@ -24,4 +24,5 @@ venv/
 # egg-info
 *.egg-info/
 
+tmp/
 */.env

@@ -8,9 +8,9 @@ class BaseClassifier(ABC):
     """Base class for agent classifiers."""
     
     @abstractmethod
-    def classify(self, message: str, thread_id: Optional[str] = None, available_agents: List[AgentInfo] = None) -> str:
+    def classify(self, message: str, thread_id: Optional[str] = None, available_agents: List[AgentInfo] = None) -> str | List[str]:
         """
-        Classify a message and return the most appropriate agent name.
+        Classify a message and return the name of most appropriate agent or team of agents.
         
         :param message: The user message to classify
         :param thread_id: Optional thread ID for context
