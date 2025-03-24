@@ -111,50 +111,13 @@ class RemoteAgent(Agent):
                 headers={"Accept": "text/event-stream"}
             ) as response:
                 response.raise_for_status()
-                current_text = ""
                 
                 for line in response.iter_lines(decode_unicode=True):
                     if line and line.startswith("data:"):
-                        content = line[5:].strip()
+                        content = line[5:]
                         if content and content != "done":
-                            # Clean up content
-                            clean_content = (
-                                content
-                                .encode('utf-8')
-                                .decode('utf-8')
-                                .replace('\u00A0', ' ')
-                            )
-                            
-                            # Add to current text
-                            current_text += clean_content
-                            
-                            # Find word boundaries
-                            words = []
-                            remaining = ""
-                            
-                            # Split into words while preserving punctuation
-                            for word in current_text.split(' '):
-                                if word:
-                                    if any(c.isalnum() for c in word):
-                                        words.append(word)
-                                    else:
-                                        # Handle punctuation
-                                        if words:
-                                            last_word = words[-1]
-                                            words[-1] = last_word + word
-                                        else:
-                                            words.append(word)
-                            
-                            # If we have complete words, yield them
-                            if words:
-                                text_to_yield = ' '.join(words)
-                                yield text_to_yield + ' '
-                                current_text = ""
-                
-                # Yield any remaining text
-                if current_text.strip():
-                    yield current_text
-                            
+                            yield content
+                    
         except Exception as e:
             error_message = f"[RemoteAgent error: {str(e)}]"
             print(error_message)
