@@ -58,7 +58,7 @@ class AzureOpenAIAgent(OpenAIAgent):
             self.client = AzureOpenAI( 
                                   azure_endpoint=api_base, 
                                   api_version=config.api_version,
-                                  azure_ad_token_provider=config.azure_ad_token_provider,
+                                  azure_ad_token_provider=token_provider,
                                   organization=config.organization)
         else:
             self.client = AzureOpenAI(api_key=config.api_key,

@@ -97,7 +97,9 @@ def setup_agent():
             You have access to reverse_text_tool that reverses the text. Always use this tool to reverse the text.
             You have access to fetch_weather_data_tool that fetches the weather data for a location.
         """,
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        # api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        # Use Azure AD token provider instead of API key. Set value to false if you want to use API key
+        use_azure_ad_token_provider=True,
         api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),  # Use default OpenAI API base
         api_version=os.getenv("AZURE_OPENAI_API_VERSION") or "2024-12-01-preview",
         organization=None  # Use default organization
