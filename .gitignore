@@ -25,3 +25,4 @@ venv/
 *.egg-info/
 
 */.env
+tmp/
