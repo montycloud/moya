@@ -16,7 +16,7 @@ app = FastAPI()
 security = HTTPBearer()
 
 # Configure your bearer token
-VALID_TOKEN = "your-secret-token-here"
+VALID_TOKEN = None #"your-secret-token-here"
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -50,6 +50,7 @@ def setup_agent():
         api_key=os.getenv("OPENAI_API_KEY"),
         tool_registry=tool_registry,
         model_name="gpt-4o",
+        is_streaming=True,
         llm_config={
             'temperature':0.8,
             'max_tokens':1000
@@ -63,13 +64,13 @@ def setup_agent():
 agent = setup_agent()
 
 
-@app.get("/health", dependencies=[Depends(verify_token)])
+@app.get("/health", dependencies=[Depends(verify_token)] if VALID_TOKEN else None)
 async def health_check():
     """Protected health check endpoint."""
     return {"status": "healthy", "agent": agent.agent_name}
 
 
-@app.post("/chat", dependencies=[Depends(verify_token)])
+@app.post("/chat", dependencies=[Depends(verify_token)]if VALID_TOKEN else None)
 async def chat(request: Request):
     """Handle normal chat requests using OpenAI agent."""
     data = await request.json()
@@ -88,7 +89,7 @@ async def chat(request: Request):
     return {"response": response}
 
 
-@app.post("/chat/stream", dependencies=[Depends(verify_token)])
+@app.post("/chat/stream", dependencies=[Depends(verify_token)] if VALID_TOKEN else None)
 async def chat_stream(request: Request):
     """Handle streaming chat requests using OpenAI agent."""
     data = await request.json()
@@ -112,7 +113,7 @@ async def stream_response(message: str, thread_id: str):
     try:
         for chunk in agent.handle_message_stream(message, thread_id=thread_id):
             if chunk:
-                yield f"data: {chunk}\n\n"
+                yield f"data:{chunk}\n"
                 await asyncio.sleep(0.01)
     except Exception as e:
         yield f"data: [Error: {str(e)}]\n\n"

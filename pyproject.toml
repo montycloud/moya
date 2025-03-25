@@ -45,6 +45,11 @@ ollama = [
   "requests>=2.32.3",
 ]
 
+azure = [
+  "openai>=1.60.1",
+  "azure-identity>=1.21.0"
+]
+
 all = [
     "boto3>=1.36.9",
     "crewai>=0.100.1",
@@ -52,7 +57,9 @@ all = [
     "requests>=2.32.3",
     "fastapi>=0.115.7",
     "uvicorn>=0.34.0",
-    "python-dotenv>=1.0.1"
+    "python-dotenv>=1.0.1",
+    "openai>=1.60.1",
+    "azure-identity>=1.21.0"
 ]
 
 

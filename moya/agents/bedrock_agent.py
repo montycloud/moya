@@ -16,10 +16,7 @@ from dataclasses import dataclass
 class BedrockAgentConfig(AgentConfig):
     model_id: str = "anthropic.claude-v2"
     region: str = "us-east-1"
-    max_tokens_to_sample: int = 2000
-    temperature: float = 0.7
-    top_p: float = 0.9
-    top_k: int = 250
+
 
 
 class BedrockAgent(Agent):
@@ -29,11 +26,7 @@ class BedrockAgent(Agent):
 
     def __init__(
         self,
-        agent_name: str,
-        description: str,
-        config: Optional[Dict[str, Any]] = None,
-        tool_registry: Optional[Any] = None,
-        agent_config: Optional[BedrockAgentConfig] = None
+        config: BedrockAgentConfig
     ):
         """
         :param agent_name: Unique name or identifier for the agent.
@@ -44,16 +37,12 @@ class BedrockAgent(Agent):
         :param system_prompt: Default system prompt for context.
         """
         super().__init__(
-            agent_name=agent_name,
-            agent_type="BedrockAgent",
-            description=description,
-            config=config,
-            tool_registry=tool_registry
+            config=config
         )
-        self.agent_config = agent_config or BedrockAgentConfig()
-        self.system_prompt = self.agent_config.system_prompt
-        self.model_id = self.agent_config.model_id
-        self.region = self.agent_config.region
+        self.config = config
+        self.system_prompt = config.system_prompt
+        self.model_id = config.model_id
+        self.region = config.region
 
     def setup(self) -> None:
         """
@@ -76,68 +65,103 @@ class BedrockAgent(Agent):
         Calls AWS Bedrock to handle the user's message.
         """
         try:
-            # Construct the prompt based on the model
-            if "anthropic" in self.model_id:
+            # Construct the request based on the model
+            if "anthropic.claude-3" in self.model_id:
+                # Use Messages API format for Claude 3 models
+                body = {
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": self.config.llm_config.get('max_tokens', 1000),
+                    "temperature": self.config.llm_config.get('temperature', 0.7),
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": self.system_prompt
+                        },
+                        {
+                            "role": "user",
+                            "content": message
+                        }
+                    ]
+                }
+            elif "anthropic" in self.model_id:
+                # Legacy format for older Claude models
                 prompt = f"\n\nHuman: {message}\n\nAssistant:"
                 body = {
                     "prompt": self.system_prompt + prompt,
-                    "max_tokens_to_sample": self.agent_config.max_tokens_to_sample,
-                    "temperature": self.agent_config.temperature
+                    "max_tokens_to_sample": self.config.llm_config.get('max_tokens', 1000),
+                    "temperature": self.config.llm_config.get('temperature', 0.7)
                 }
             else:
                 # Handle other model types here
                 body = {
-                    "inputText": message,
-                    "textGenerationConfig": {
-                        "maxTokenCount": self.agent_config.max_tokens_to_sample,
-                        "temperature": self.agent_config.temperature
-                    }
+                    "inputText": message
                 }
-
+                
             response = self.client.invoke_model(
                 modelId=self.model_id,
                 body=json.dumps(body)
             )
-
             response_body = json.loads(response['body'].read())
-            return response_body.get('completion', response_body.get('outputText', ''))
-
+            
+            # Handle different response formats
+            if "anthropic.claude-3" in self.model_id:
+                return response_body.get('content', [{}])[0].get('text', '')
+            else:
+                return response_body.get('completion', response_body.get('outputText', ''))
+                
         except Exception as e:
             return f"[BedrockAgent error: {str(e)}]"
-
+            
     def handle_message_stream(self, message: str, **kwargs):
         """
         Calls AWS Bedrock to handle the user's message with streaming support.
         """
         try:
-            if "anthropic" in self.model_id:
+            if "anthropic.claude-3" in self.model_id:
+                # Use Messages API format for Claude 3 models
+                body = {
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": self.config.llm_config.get('max_tokens', 1000),
+                    "temperature": self.config.llm_config.get('temperature', 0.7),
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": self.system_prompt
+                        },
+                        {
+                            "role": "user",
+                            "content": message
+                        }
+                    ]
+                }
+            elif "anthropic" in self.model_id:
+                # Legacy format for older Claude models
                 prompt = f"\n\nHuman: {message}\n\nAssistant:"
                 body = {
                     "prompt": self.system_prompt + prompt,
-                    "max_tokens_to_sample": self.agent_config.max_tokens_to_sample,
-                    "temperature": self.agent_config.temperature
+                    "max_tokens_to_sample": self.config.llm_config.get('max_tokens', 1000),
+                    "temperature": self.config.llm_config.get('temperature', 0.7)
                 }
             else:
                 body = {
-                    "inputText": message,
-                    "textGenerationConfig": {
-                        "maxTokenCount": self.agent_config.max_tokens_to_sample,
-                        "temperature": self.agent_config.temperature
-                    }
+                    "inputText": message
                 }
-
+                
             response = self.client.invoke_model_with_response_stream(
                 modelId=self.model_id,
                 body=json.dumps(body)
             )
-
+            
             for event in response['body']:
                 chunk = json.loads(event['chunk']['bytes'])
-                if 'completion' in chunk:
+                if "anthropic.claude-3" in self.model_id:
+                    if 'delta' in chunk and 'text' in chunk['delta']:
+                        yield chunk['delta']['text']
+                elif 'completion' in chunk:
                     yield chunk['completion']
                 elif 'outputText' in chunk:
                     yield chunk['outputText']
-
+                    
         except Exception as e:
             error_message = f"[BedrockAgent error: {str(e)}]"
             print(error_message)

@@ -4,33 +4,36 @@ Interactive chat example using BedrockAgent with conversation memory.
 
 from moya.memory.in_memory_repository import InMemoryRepository
 from moya.tools.tool_registry import ToolRegistry
-from moya.tools.memory_tool import MemoryTool
 from moya.registry.agent_registry import AgentRegistry
 from moya.orchestrators.simple_orchestrator import SimpleOrchestrator
 from moya.agents.bedrock_agent import BedrockAgent, BedrockAgentConfig
+from moya.tools.ephemeral_memory import EphemeralMemory
+from moya.tools.base_tool import BaseTool
 
 
 def setup_agent():
+    
     # Set up memory components
-    memory_repo = InMemoryRepository()
-    memory_tool = MemoryTool(memory_repository=memory_repo)
     tool_registry = ToolRegistry()
-    tool_registry.register_tool(memory_tool)
+    EphemeralMemory.configure_memory_tools(tool_registry)
 
     # Create Bedrock agent with memory capabilities
     agent_config = BedrockAgentConfig(
+        agent_name="bedrock_chat",
+        agent_type="ChatAgent",
+        description="An interactive chat agent using AWS Bedrock with memory capabilities.",
         system_prompt="You are a helpful AI assistant with memory capabilities.",
-        model_id="anthropic.claude-v2",
+        model_id="anthropic.claude-3-5-sonnet-20240620-v1:0",
         region="us-east-1",
-        temperature=0.7,
-        max_tokens_to_sample=2000
+        tool_registry=tool_registry,
+        llm_config={
+            'temperature': 0.7,
+            'max_tokens': 1000
+        }
     )
 
     agent = BedrockAgent(
-        agent_name="bedrock_chat",
-        description="An interactive chat agent with memory using AWS Bedrock",
-        agent_config=agent_config,
-        tool_registry=tool_registry
+        config=agent_config
     )
     agent.setup()
 
@@ -68,13 +71,7 @@ def main():
             break
 
         # Store the user message
-        agent.call_tool(
-            tool_name="MemoryTool",
-            method_name="store_message",
-            thread_id=thread_id,
-            sender="user",
-            content=user_input
-        )
+        EphemeralMemory.store_message(thread_id=thread_id, sender="user", content=user_input)
 
         # Get conversation context
         previous_messages = agent.get_last_n_messages(thread_id, n=5)
@@ -96,13 +93,7 @@ def main():
         print()
 
         # Store the assistant's response
-        agent.call_tool(
-            tool_name="MemoryTool",
-            method_name="store_message",
-            thread_id=thread_id,
-            sender="assistant",
-            content=response
-        )
+        EphemeralMemory.store_message(thread_id=thread_id, sender="assistant", content=response)
 
 
 if __name__ == "__main__":
