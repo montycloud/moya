@@ -110,33 +110,29 @@ class BedrockAgent(Agent):
         Calls AWS Bedrock to handle the user's message with streaming support.
         """
         try:
-            if "anthropic" in self.model_id:
-                prompt = f"\n\nHuman: {message}\n\nAssistant:"
-                body = {
-                    "prompt": self.system_prompt + prompt,
-                    "max_tokens_to_sample": self.agent_config.max_tokens_to_sample,
-                    "temperature": self.agent_config.temperature
-                }
-            else:
-                body = {
-                    "inputText": message,
-                    "textGenerationConfig": {
-                        "maxTokenCount": self.agent_config.max_tokens_to_sample,
-                        "temperature": self.agent_config.temperature
-                    }
-                }
-
-            response = self.client.invoke_model_with_response_stream(
+            response = self.client.converse_stream(
                 modelId=self.model_id,
-                body=json.dumps(body)
+                messages=[{
+                    "role": "user",
+                    "content": [{
+                        "text": message
+                    }]
+                }],
+                system=[{
+                    "text": self.system_prompt
+                }],
+                inferenceConfig={
+                    "maxTokens": self.agent_config.max_tokens_to_sample, 
+                    "temperature": self.agent_config.temperature, 
+                    "topP": self.agent_config.top_p
+                }
             )
 
-            for event in response['body']:
-                chunk = json.loads(event['chunk']['bytes'])
-                if 'completion' in chunk:
-                    yield chunk['completion']
-                elif 'outputText' in chunk:
-                    yield chunk['outputText']
+            stream = response.get('stream')
+            if stream:
+                for event in stream:
+                    if 'contentBlockDelta' in event:
+                        yield event['contentBlockDelta']['delta']['text']
 
         except Exception as e:
             error_message = f"[BedrockAgent error: {str(e)}]"
