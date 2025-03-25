@@ -41,6 +41,10 @@ class AzureOpenAIAgent(OpenAIAgent):
             config.api_key = "Using Azure AD token provider"
 
         super().__init__(config=config)
+        if not os.getenv("AZURE_API_ENDPOINT"):
+            raise ValueError("Azure OpenAI API ENDPOINT environment variable for reading base is required for AzureOpenAIAgent.")
+        config.api_base = os.getenv("AZURE_API_ENDPOINT")
+
         if not config.api_base:
             raise ValueError("Azure OpenAI API base is required for AzureOpenAIAgent.")
         api_base = config.api_base 
