@@ -1,0 +1,88 @@
+[build-system]
+requires = [
+    "setuptools>=61.0", 
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "moya-ai"
+version = "0.1.5"
+description = "A reference implementation of the Moya AI framework."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+  { name="MontyCloud", email="kannan@montycloud.com" }
+]
+keywords = ["python", "moya"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+requires-python = ">=3.11"
+
+dependencies = []
+
+[project.optional-dependencies]
+
+openai = [
+    "openai>=1.60.1"
+]
+
+awsbedrock = [
+  "boto3>=1.36.9"
+]
+
+crewai = [
+  "crewai>=0.100.1",
+  "crewai-tools>=0.33.0"
+]
+
+ollama = [
+  "requests>=2.32.3",
+]
+
+azure = [
+  "openai>=1.60.1",
+  "azure-identity>=1.21.0"
+]
+
+all = [
+    "boto3>=1.36.9",
+    "crewai>=0.100.1",
+    "crewai-tools>=0.33.0",
+    "requests>=2.32.3",
+    "fastapi>=0.115.7",
+    "uvicorn>=0.34.0",
+    "python-dotenv>=1.0.1",
+    "openai>=1.60.1",
+    "azure-identity>=1.21.0",
+    "mkdocs>=1.4.0",
+    "mkdocs-material>=9.0.0"
+]
+
+docs = [
+    "mkdocs>=1.4.0",
+    "mkdocs-material>=9.0.0"
+]
+
+[tool.setuptools]
+packages = [
+    "moya",
+    "moya.agents",
+    "moya.classifiers",
+    "moya.conversation",
+    "moya.delegation",
+    "moya.flows",
+    "moya.mcp",
+    "moya.memory",
+    "moya.orchestrators",
+    "moya.registry",
+    "moya.skills",
+    "moya.tools",
+    "moya.utils"
+]
+

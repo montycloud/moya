@@ -1,0 +1,89 @@
+"""
+SimpleOrchestrator for Moya.
+
+A reference implementation of a basic orchestrator that:
+- Selects a single agent or a set of agents based on naive matching,
+- Calls handle_message on the selected agent(s),
+- Returns the response(s).
+"""
+
+from typing import Optional
+from moya.orchestrators.orchestrator import Orchestrator
+from moya.registry.agent_registry import AgentRegistry
+
+
+class SimpleOrchestrator(Orchestrator):
+    """
+    A naive orchestrator that picks a single agent or a simple list of
+    agents to handle each user message. The logic here can be as simple
+    or as advanced as needed for demonstration.
+    """
+
+    def __init__(
+        self,
+        agent_registry: AgentRegistry,
+        default_agent_name: Optional[str] = None,
+        config: Optional[dict] = None
+    ):
+        """
+        :param agent_registry: The AgentRegistry to retrieve agents from.
+        :param default_agent_name: The default agent to fall back on if no specialized match is found.
+        :param config: Optional dictionary for orchestrator configuration.
+        """
+        super().__init__(agent_registry=agent_registry, config=config)
+        self.default_agent_name = default_agent_name
+
+    def orchestrate(self, thread_id: str, user_message: str, stream_callback=None, **kwargs) -> str:
+        """
+        The main orchestration method. In this simple implementation, we:
+          1. Attempt to find an agent by name if one is specified in kwargs,
+             else use the default agent if available,
+             else just pick the first agent in the registry (if any).
+          2. Pass the user_message to the chosen agent's handle_message().
+          3. Return the agent's response.
+          4. (Optionally) store the conversation message in memory via a MemoryTool.
+
+        :param thread_id: The conversation thread ID.
+        :param user_message: The message from the user.
+        :param stream_callback: Optional callback function for streaming responses.
+        :param kwargs: Additional context (e.g., 'agent_name' to override which agent to call).
+        :return: The response from the chosen agent.
+        """
+        # 1. Determine which agent to call
+        agent_name = kwargs.get("agent_name")
+        agent = None
+
+        if agent_name:
+            agent = self.agent_registry.get_agent(agent_name)
+        elif self.default_agent_name:
+            agent = self.agent_registry.get_agent(self.default_agent_name)
+        else:
+            # If no default is specified, just pick the first agent available
+            agent_list = self.agent_registry.list_agents()
+            if (agent_list):
+                agent = self.agent_registry.get_agent(agent_list[0])
+
+        if not agent:
+            searched = agent_name or self.default_agent_name or "<first available>"
+            registered = [a.name for a in self.agent_registry.list_agents()]
+            return (
+                f"[No agent found for thread '{thread_id}'. "
+                f"Looked for '{searched}'. "
+                f"Registered agents: {registered or ['none']}]"
+            )
+
+        # 3. Let the agent handle the message with streaming support
+        if stream_callback:
+            response = ""
+            message_stream = agent.handle_message_stream(user_message, thread_id=thread_id, **kwargs)
+            if message_stream is None:
+                message_stream = []
+
+            for chunk in message_stream:
+                stream_callback(chunk)
+                response += chunk
+        else:
+            response = agent.handle_message(user_message, thread_id=thread_id, **kwargs)
+
+        # 5. Return the agent's response
+        return response
