@@ -28,5 +28,15 @@ from moya.delegation.manager import (
     DelegationManager,
     MaxDelegationDepthError,
 )
+from moya.delegation.aggregation import aggregate, STRATEGIES
+from moya.delegation.spawner import SubAgentSpawner, SubAgentSpec
 
-__all__ = ["DelegationManager", "MaxDelegationDepthError", "AgentNotFoundError"]
+__all__ = [
+    "DelegationManager",
+    "MaxDelegationDepthError",
+    "AgentNotFoundError",
+    "aggregate",
+    "STRATEGIES",
+    "SubAgentSpawner",
+    "SubAgentSpec",
+]

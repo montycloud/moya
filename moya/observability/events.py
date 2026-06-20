@@ -119,3 +119,47 @@ class StepCompletedEvent(StepEvent):
 class StepErrorEvent(StepEvent):
     error: str = ""
     event_type: str = "step.error"
+
+
+# ── Delegation events ─────────────────────────────────────────────────────────
+
+@dataclass
+class DelegationEvent(MoyaEvent):
+    delegating_from: str = ""
+    delegating_to: str = ""
+    task_preview: str = ""  # first 200 chars of the task
+    depth: int = 0
+
+
+@dataclass
+class DelegationStartedEvent(DelegationEvent):
+    event_type: str = "delegation.started"
+
+
+@dataclass
+class DelegationCompletedEvent(DelegationEvent):
+    duration_ms: float = 0.0
+    event_type: str = "delegation.completed"
+
+
+@dataclass
+class DelegationErrorEvent(DelegationEvent):
+    error: str = ""
+    event_type: str = "delegation.error"
+
+
+# ── Sub-agent spawn events ────────────────────────────────────────────────────
+
+@dataclass
+class AgentSpawnedEvent(AgentEvent):
+    parent_agent: str = ""
+    inherited_tools: bool = False
+    inherited_skills: bool = False
+    event_type: str = "agent.spawned"
+
+
+@dataclass
+class AgentSpawnErrorEvent(AgentEvent):
+    parent_agent: str = ""
+    error: str = ""
+    event_type: str = "agent.spawn_error"

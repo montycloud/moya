@@ -38,11 +38,13 @@ Usage::
 """
 
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from typing import Callable, List, Optional, Tuple
 
 from moya.tools.tool import Tool
 from moya.tools.tool_registry import ToolRegistry
+from moya.delegation.aggregation import aggregate as _aggregate
 
 
 class MaxDelegationDepthError(Exception):
@@ -67,10 +69,16 @@ class DelegationManager:
         delegations in different threads each have independent counters.
     """
 
-    def __init__(self, agent_registry: any, max_depth: int = 5) -> None:
+    def __init__(
+        self,
+        agent_registry: any,
+        max_depth: int = 5,
+        event_bus: Optional[any] = None,
+    ) -> None:
         self._registry = agent_registry
         self.max_depth = max_depth
         self._local = threading.local()
+        self._event_bus = event_bus
 
     # ------------------------------------------------------------------
     # Programmatic delegation
@@ -110,16 +118,54 @@ class DelegationManager:
             raise AgentNotFoundError(f"No agent found for '{ref}'.")
 
         self._set_depth(depth + 1)
+        self._emit_delegation_started(task, agent_name or f"skill:{skill}", depth + 1)
+        t0 = time.monotonic()
         try:
-            return agent.handle_message(task, thread_id=thread_id or "delegation")
+            result = agent.handle_message(task, thread_id=thread_id or "delegation")
+            self._emit_delegation_completed(task, agent_name or f"skill:{skill}", depth + 1, t0)
+            return result
+        except Exception as exc:
+            self._emit_delegation_error(task, agent_name or f"skill:{skill}", depth + 1, exc)
+            raise
         finally:
             self._set_depth(depth)
+
+    def delegate_async(
+        self,
+        task: str,
+        agent_name: Optional[str] = None,
+        skill: Optional[str] = None,
+        thread_id: Optional[str] = None,
+    ) -> Future:
+        """
+        Delegate a task non-blocking and return a :class:`concurrent.futures.Future`.
+
+        The caller can call ``future.result()`` to block until the response
+        arrives, or attach a callback via ``future.add_done_callback(fn)``.
+
+        Args:
+            task:       Task or question to delegate.
+            agent_name: Name of the target agent.
+            skill:      Route to an agent with this skill (when *agent_name* omitted).
+            thread_id:  Conversation thread ID for the sub-agent.
+
+        Returns:
+            A :class:`~concurrent.futures.Future` that resolves to the agent's
+            response string.
+        """
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(
+            self.delegate, task, agent_name, skill, thread_id
+        )
+        executor.shutdown(wait=False)
+        return future
 
     def delegate_parallel(
         self,
         tasks: List[Tuple[str, str]],
         thread_id: Optional[str] = None,
         merge: Optional[Callable[[List[str]], str]] = None,
+        aggregation: Optional[str] = None,
     ) -> List[str]:
         """
         Delegate multiple tasks concurrently and return a list of responses.
@@ -149,7 +195,10 @@ class DelegationManager:
 
         def run_task(item: Tuple[str, str]) -> str:
             task, agent_ref = item
-            self._set_depth(parent_depth + 1)
+            depth = parent_depth + 1
+            self._set_depth(depth)
+            self._emit_delegation_started(task, agent_ref, depth)
+            t0 = time.monotonic()
             try:
                 if isinstance(agent_ref, str) and agent_ref.startswith("skill:"):
                     skill_name = agent_ref[len("skill:"):]
@@ -158,7 +207,12 @@ class DelegationManager:
                     agent = self._resolve(agent_name=agent_ref)
                 if not agent:
                     raise AgentNotFoundError(f"No agent found for '{agent_ref}'.")
-                return agent.handle_message(task, thread_id=thread_id or "delegation")
+                result = agent.handle_message(task, thread_id=thread_id or "delegation")
+                self._emit_delegation_completed(task, agent_ref, depth, t0)
+                return result
+            except Exception as exc:
+                self._emit_delegation_error(task, agent_ref, depth, exc)
+                raise
             finally:
                 self._set_depth(parent_depth)
 
@@ -169,6 +223,8 @@ class DelegationManager:
                 idx = future_to_idx[future]
                 results[idx] = future.result()
 
+        if aggregation:
+            return [_aggregate(results, strategy=aggregation, custom_fn=merge)]
         if merge:
             return [merge(results)]
         return results
@@ -245,3 +301,48 @@ class DelegationManager:
             agents = self._registry.find_agents_with_skill(skill)
             return agents[0] if agents else None
         return None
+
+    def _emit_delegation_started(self, task: str, target: str, depth: int) -> None:
+        if not self._event_bus:
+            return
+        from moya.observability.events import DelegationStartedEvent
+        self._event_bus.publish(
+            DelegationStartedEvent(
+                source="DelegationManager",
+                delegating_to=target,
+                task_preview=task[:200],
+                depth=depth,
+            )
+        )
+
+    def _emit_delegation_completed(
+        self, task: str, target: str, depth: int, t0: float
+    ) -> None:
+        if not self._event_bus:
+            return
+        from moya.observability.events import DelegationCompletedEvent
+        self._event_bus.publish(
+            DelegationCompletedEvent(
+                source="DelegationManager",
+                delegating_to=target,
+                task_preview=task[:200],
+                depth=depth,
+                duration_ms=(time.monotonic() - t0) * 1000,
+            )
+        )
+
+    def _emit_delegation_error(
+        self, task: str, target: str, depth: int, exc: Exception
+    ) -> None:
+        if not self._event_bus:
+            return
+        from moya.observability.events import DelegationErrorEvent
+        self._event_bus.publish(
+            DelegationErrorEvent(
+                source="DelegationManager",
+                delegating_to=target,
+                task_preview=task[:200],
+                depth=depth,
+                error=str(exc),
+            )
+        )
