@@ -92,11 +92,29 @@ export interface SavedFlow {
   edges: import('@xyflow/react').Edge[]
 }
 
+export interface MCPNodeData extends Record<string, unknown> {
+  label: string
+  name: string
+  transport: 'http' | 'stdio'
+  url: string
+  command: string
+  args: string
+  apiKey: string
+}
+
+export interface A2ANodeData extends Record<string, unknown> {
+  label: string
+  name: string
+  endpointUrl: string
+  description: string
+  timeoutSeconds: number
+}
+
 export interface TraceEvent {
   nodeId: string
   nodeName: string
   nodeType: string
-  status: 'started' | 'completed' | 'error'
+  status: 'started' | 'completed' | 'error' | 'warning'
   input: string
   output: string
   durationMs: number

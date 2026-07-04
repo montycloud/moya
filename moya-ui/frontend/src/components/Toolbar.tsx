@@ -1,5 +1,5 @@
-import { Play, Trash2, ChevronDown, BookOpen, Cpu, Radio, Code2, Terminal, Upload, X, Save, Download, FolderOpen, FileJson } from 'lucide-react'
-import { useState, useRef } from 'react'
+import { Play, Square, Trash2, ChevronDown, BookOpen, Cpu, Radio, Code2, Terminal, Upload, X, Save, Download, FolderOpen, FileJson } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
 import { TEMPLATES } from '../constants'
 import type { Node, Edge } from '@xyflow/react'
 import type { PublishedAgent, SavedFlow } from '../types'
@@ -10,6 +10,7 @@ const PUBLISH_CATEGORIES = ['General', 'Writing', 'Analysis', 'Engineering', 'Tr
 
 interface Props {
   onRun: () => void
+  onStop: () => void
   onClear: () => void
   onLoadTemplate: (t: { nodes: Node[]; edges: Edge[] }) => void
   onOpenSkillsLibrary: () => void
@@ -221,7 +222,7 @@ function PublishModal({
 // ── Toolbar ───────────────────────────────────────────────────────────────────
 
 export function Toolbar({
-  onRun, onClear, onLoadTemplate, onOpenSkillsLibrary, onPublishAgent,
+  onRun, onStop, onClear, onLoadTemplate, onOpenSkillsLibrary, onPublishAgent,
   isExecuting, runMode, onRunModeChange,
   activePanel, onTogglePanel,
   nodes, edges,
@@ -232,7 +233,22 @@ export function Toolbar({
   const [showPublish,    setShowPublish]    = useState(false)
   const [showFlowsMenu,  setShowFlowsMenu]  = useState(false)
   const [showSaveModal,  setShowSaveModal]  = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef  = useRef<HTMLInputElement>(null)
+  const toolbarRef    = useRef<HTMLDivElement>(null)
+
+  // Close all dropdowns when clicking outside the toolbar
+  useEffect(() => {
+    function handleOutsideClick(e: MouseEvent) {
+      const target = e.target
+      if (toolbarRef.current && target instanceof Element && !toolbarRef.current.contains(target)) {
+        setShowTemplates(false)
+        setShowModeMenu(false)
+        setShowFlowsMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
 
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -260,7 +276,7 @@ export function Toolbar({
 
   return (
     <>
-      <div className="h-11 bg-white border-b border-slate-200 flex items-center gap-1 px-3 flex-shrink-0 relative z-10">
+      <div ref={toolbarRef} className="h-11 bg-white border-b border-slate-200 flex items-center gap-1 px-3 flex-shrink-0 relative z-10">
 
         {/* Templates */}
         <div className="relative">
@@ -471,29 +487,24 @@ export function Toolbar({
           )}
         </div>
 
-        {/* Run button */}
-        <button
-          onClick={onRun}
-          disabled={isExecuting}
-          className={[
-            'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ml-1',
-            isExecuting
-              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md',
-          ].join(' ')}
-        >
-          {isExecuting ? (
-            <>
-              <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
-              Running…
-            </>
-          ) : (
-            <>
-              <Play size={11} fill="currentColor" />
-              Run
-            </>
-          )}
-        </button>
+        {/* Run / Stop button */}
+        {isExecuting ? (
+          <button
+            onClick={onStop}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ml-1 bg-rose-500 hover:bg-rose-600 text-white shadow-sm"
+          >
+            <Square size={11} fill="currentColor" />
+            Stop
+          </button>
+        ) : (
+          <button
+            onClick={onRun}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ml-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
+          >
+            <Play size={11} fill="currentColor" />
+            Run
+          </button>
+        )}
       </div>
 
       {/* Publish modal */}

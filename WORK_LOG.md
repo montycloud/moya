@@ -123,16 +123,50 @@ These bit us during the build — important for future changes:
 
 ---
 
-### 5. Potential Next Features (Not Yet Built)
+### 5. Feature Status
 
-- [ ] **Settings modal** — API key input for OpenAI/Ollama/Bedrock (Toolbar has `onOpenSettings` stub)
-- [ ] **Save / Load flows** — export/import flow JSON to localStorage or file
-- [ ] **More MOYA node types** — `MCPClientNode`, `DelegationNode`, `AgentRegistryNode`
-- [ ] **Real streaming execution** — connect Simulate to backend SSE when API key is set
-- [ ] **Edge labels** — show data flowing along connections in simulation
-- [ ] **Validation** — warn when flow has no Input/Output node, disconnected agents, etc.
-- [ ] **MOYA framework additions** — streaming improvements, new providers, CLI, more orchestrator patterns
+- [x] **Settings modal** — API key input for OpenAI/Ollama/Bedrock (`SettingsModal.tsx`)
+- [x] **Save / Load flows** — named saves, export/import JSON, auto-save to localStorage
+- [x] **More MOYA node types** — `MCPNode` (amber), `A2ANode` (rose); MCP + A2A templates
+- [x] **Real streaming execution** — FastAPI SSE backend; Real / Simulation mode toggle
+- [x] **Edge animation** — edges glow amber (node running) → indigo (node completed)
+- [x] **Validation** — warns on missing Output node or isolated agents (yellow trace rows)
+- [x] **Agent Marketplace** — Phases 1–5 complete; flat-file + SQLite backends; Try-it chat
 
 ---
 
-*Last updated: 2026-05-13*
+## Session 2 — Phase 4 Framework Completion
+
+### 1. pyproject.toml Fixes
+
+- **Bug fix**: Added `moya.observability` to the `[tool.setuptools] packages` list (was missing — observability module would not ship in wheel)
+- **New extra `mcp`**: `pip install moya-ai[mcp]` now installs `mcp>=1.0.0` (the MCP Python SDK)
+- **New extra `observability`**: marker extra (pure stdlib, no deps) for discoverability
+- **Updated `all`**: includes `mcp>=1.0.0`, `a2a-sdk>=1.0.3`, `httpx`, `starlette`, `sse-starlette`
+
+### 2. CI Config
+
+Created `.github/workflows/ci.yml`:
+- Triggers on push to `main` / `moya-v2-karthik` and PRs to `main`
+- Matrix: Python 3.11 and 3.12
+- Installs `.[all,a2a,mcp]` and runs `pytest tests/ -v`
+
+### 3. UI — Edge Animation (data flow visualisation)
+
+`App.tsx`: `displayEdges` memo derived from `traceEvents`:
+- Edge source **started** → amber stroke + 3px width + animated
+- Edge source **completed** → indigo stroke + animated
+- Resets automatically when a new run begins
+
+### 4. UI — Flow Validation Warnings
+
+`handleRun` in `App.tsx` now emits soft warning trace events (amber rows in Output panel):
+- **No Output node** — warns, does not block the run
+- **Isolated agents** — lists agents with no connections; they will be skipped
+
+`types.ts`: Added `'warning'` to `TraceEvent.status`.
+`BottomPanel.tsx`: `TraceRow` renders warning events with amber badge + amber background.
+
+---
+
+*Last updated: 2026-07-04*

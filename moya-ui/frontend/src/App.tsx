@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   ReactFlow,
   Background,
@@ -23,6 +23,8 @@ import { OutputNode }   from './components/nodes/OutputNode'
 import { ParallelNode } from './components/nodes/ParallelNode'
 import { LoopNode }     from './components/nodes/LoopNode'
 import { BranchNode }   from './components/nodes/BranchNode'
+import { MCPNode }      from './components/nodes/MCPNode'
+import { A2ANode }      from './components/nodes/A2ANode'
 
 import { TopNav }        from './components/TopNav'
 import { NodePalette }   from './components/NodePalette'
@@ -49,12 +51,15 @@ const nodeTypes = {
   parallel: ParallelNode,
   loop:     LoopNode,
   branch:   BranchNode,
+  mcp:      MCPNode,
+  a2a:      A2ANode,
 } as const
 
 const defaultEdgeOptions = {
-  animated: true,
-  markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
-  style: { stroke: '#94a3b8', strokeWidth: 2 },
+  animated: false,
+  type: 'smoothstep',
+  markerEnd: { type: MarkerType.ArrowClosed, color: '#cbd5e1' },
+  style: { stroke: '#cbd5e1', strokeWidth: 1.5 },
 }
 
 const DEFAULT_API_CONFIG: ApiConfig = {
@@ -128,10 +133,69 @@ export function App() {
   const [apiConfig,         setApiConfig]         = useState<ApiConfig>(loadApiConfig)
   const [savedFlows,        setSavedFlows]        = useState<SavedFlow[]>(loadSavedFlows)
 
+  const abortRef = useRef<AbortController | null>(null)
+
   const { screenToFlowPosition, updateNodeData } = useReactFlow()
 
   const selectedNode  = useMemo(() => nodes.find(n => n.id === selectedNodeId) ?? null, [nodes, selectedNodeId])
   const generatedCode = useMemo(() => generateCode(nodes, edges), [nodes, edges])
+
+  // ── Edge animation — highlight data flow during / after simulation ────────────
+  const activeEdgeSourceIds = useMemo(() => {
+    const started   = new Set<string>()
+    const completed = new Set<string>()
+    for (const ev of traceEvents) {
+      if (ev.status === 'warning') continue
+      if (ev.status === 'started')   started.add(ev.nodeId)
+      if (ev.status === 'completed' || ev.status === 'error') {
+        started.delete(ev.nodeId)
+        completed.add(ev.nodeId)
+      }
+    }
+    return { started, completed }
+  }, [traceEvents])
+
+  const displayEdges = useMemo(() => {
+    const { started, completed } = activeEdgeSourceIds
+    return edges.map(e => {
+      // Simulation highlights override the baseline
+      if (started.has(e.source)) return {
+        ...e, type: 'smoothstep', animated: true,
+        style: { stroke: '#f59e0b', strokeWidth: 3 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#f59e0b' },
+      }
+      if (completed.has(e.source)) return {
+        ...e, type: 'smoothstep', animated: true,
+        style: { stroke: '#818cf8', strokeWidth: 2.5 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#818cf8' },
+      }
+      // Baseline: always clean, solid, slate — overrides anything stored in localStorage
+      return {
+        ...e, type: 'smoothstep', animated: false,
+        style: { stroke: '#cbd5e1', strokeWidth: 1.5 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#cbd5e1' },
+      }
+    })
+  }, [edges, activeEdgeSourceIds])
+
+  // ── Sync published agents from backend (fallback: localStorage) ──────────────
+  useEffect(() => {
+    const url = (apiConfig.backendUrl || 'http://localhost:8000').replace(/\/$/, '')
+    fetch(`${url}/api/marketplace`, { signal: AbortSignal.timeout(3000) })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: Record<string, unknown>[]) => {
+        setPublishedAgents(data.map(a => ({
+          id:          a.id          as string,
+          name:        a.name        as string,
+          description: a.description as string,
+          category:    a.category    as string,
+          tags:        a.tags        as string[],
+          flow:        a.flow        as { nodes: Node[]; edges: Edge[] },
+          publishedAt: a.published_at as string,
+        })))
+      })
+      .catch(() => { /* backend not available — keep localStorage state */ })
+  }, [apiConfig.backendUrl])
 
   // ── Persist run mode ─────────────────────────────────────────────────────────
   function handleRunModeChange(m: 'simulation' | 'real') {
@@ -258,8 +322,42 @@ export function App() {
 
   // ── Run ───────────────────────────────────────────────────────────────────────
   const handleRun = useCallback(async () => {
+    // Hard errors — block run
+    const agentNodes = nodes.filter(n => n.type === 'agent')
+    if (nodes.length === 0) {
+      setRunError('Canvas is empty — drag some nodes onto the canvas first.')
+      setActivePanel('output')
+      return
+    }
+    if (agentNodes.length === 0) {
+      setRunError('No Agent nodes found — add at least one Agent to run the flow.')
+      setActivePanel('output')
+      return
+    }
+    if (!nodes.find(n => n.type === 'input')) {
+      setRunError('No Input node found — add an Input node to set the starting message.')
+      setActivePanel('output')
+      return
+    }
+
+    // Soft warnings — show but continue
+    const warnings: TraceEvent[] = []
+    const t = Date.now()
+    if (!nodes.find(n => n.type === 'output')) {
+      warnings.push({ nodeId: 'v1', nodeName: 'No Output node', nodeType: 'validation', status: 'warning', input: '', output: 'Add an Output node to capture the final result on the canvas.', durationMs: 0, timestamp: t })
+    }
+    const connectedIds = new Set(edges.flatMap(e => [e.source, e.target]))
+    const isolated = agentNodes.filter(n => !connectedIds.has(n.id))
+    if (isolated.length > 0) {
+      const names = isolated.map(n => (n.data as { label?: string }).label || n.id).join(', ')
+      warnings.push({ nodeId: 'v2', nodeName: 'Isolated agents', nodeType: 'validation', status: 'warning', input: '', output: `Agent(s) with no connections will be skipped: ${names}`, durationMs: 0, timestamp: t })
+    }
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setIsExecuting(true)
-    setTraceEvents([])
+    setTraceEvents(warnings)
     setFinalOutput('')
     setRunError(null)
     setActivePanel('output')
@@ -270,23 +368,29 @@ export function App() {
       if (runMode === 'real') {
         output = await runReal(nodes, edges, apiConfig, event => {
           setTraceEvents(prev => [...prev, event])
-        })
+        }, controller.signal)
       } else {
         output = await runSimulation(nodes, edges, event => {
           setTraceEvents(prev => [...prev, event])
-        })
+        }, controller.signal)
       }
 
       setFinalOutput(output)
       const outNode = nodes.find(n => n.type === 'output')
       if (outNode) updateNodeData(outNode.id, { result: output })
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
       const msg = err instanceof Error ? err.message : String(err)
       setRunError(msg)
     } finally {
       setIsExecuting(false)
+      abortRef.current = null
     }
   }, [nodes, edges, runMode, apiConfig, updateNodeData])
+
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
 
   // ── Canvas actions ────────────────────────────────────────────────────────────
   const handleClear = useCallback(() => {
@@ -332,16 +436,51 @@ export function App() {
   }
 
   // ── Publish Agent ─────────────────────────────────────────────────────────────
-  function handlePublishAgent(agent: PublishedAgent) {
-    const next = [...publishedAgents, agent]
-    setPublishedAgents(next)
-    localStorage.setItem('moya_published_agents', JSON.stringify(next))
+  async function handlePublishAgent(agent: PublishedAgent) {
+    const url = (apiConfig.backendUrl || 'http://localhost:8000').replace(/\/$/, '')
+    try {
+      const res = await fetch(`${url}/api/marketplace/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({
+          id: agent.id,
+          name: agent.name,
+          description: agent.description,
+          category: agent.category,
+          tags: agent.tags,
+          provider: 'user',
+          node_count: {
+            agents: agent.flow.nodes.filter(n => n.type === 'agent').length,
+            tools:  agent.flow.nodes.filter(n => n.type === 'tool').length,
+            skills: agent.flow.nodes.filter(n => n.type === 'skill').length,
+          },
+          flow: agent.flow,
+        }),
+      })
+      if (res.ok) { setPublishedAgents(prev => [...prev, agent]); return }
+    } catch {}
+    // Fallback: localStorage
+    setPublishedAgents(prev => {
+      const next = [...prev, agent]
+      localStorage.setItem('moya_published_agents', JSON.stringify(next))
+      return next
+    })
   }
 
-  function handleDeletePublishedAgent(id: string) {
-    const next = publishedAgents.filter(a => a.id !== id)
-    setPublishedAgents(next)
-    localStorage.setItem('moya_published_agents', JSON.stringify(next))
+  async function handleDeletePublishedAgent(id: string) {
+    const url = (apiConfig.backendUrl || 'http://localhost:8000').replace(/\/$/, '')
+    try {
+      await fetch(`${url}/api/marketplace/${id}`, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(5000),
+      })
+    } catch {}
+    setPublishedAgents(prev => {
+      const next = prev.filter(a => a.id !== id)
+      localStorage.setItem('moya_published_agents', JSON.stringify(next))
+      return next
+    })
   }
 
   return (
@@ -357,6 +496,7 @@ export function App() {
           <>
             <Toolbar
               onRun={handleRun}
+              onStop={handleStop}
               onClear={handleClear}
               onLoadTemplate={handleLoadTemplate}
               onOpenSkillsLibrary={() => setSkillsLibraryOpen(true)}
@@ -409,7 +549,7 @@ export function App() {
                 )}
                 <ReactFlow
                   nodes={nodes}
-                  edges={edges}
+                  edges={displayEdges}
                   nodeTypes={nodeTypes}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
@@ -458,6 +598,7 @@ export function App() {
             onCloneToBuilder={handleCloneToBuilder}
             publishedAgents={publishedAgents}
             onDeletePublishedAgent={handleDeletePublishedAgent}
+            apiConfig={apiConfig}
           />
         )}
       </div>

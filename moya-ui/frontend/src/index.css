@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Remove default React Flow node border so our custom nodes control it */
+.react-flow__node {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* Handle hover glow */
+.react-flow__handle:hover {
+  transform: scale(1.4);
+  transition: transform 0.1s ease;
+}
+
+/* Edge path */
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+
+/* Animated edge */
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.6s linear infinite;
+}
+
+@keyframes dashdraw {
+  to { stroke-dashoffset: -10; }
+}
+
+/* Controls styling */
+.react-flow__controls-button {
+  border: 1px solid #e2e8f0 !important;
+  background: white !important;
+  color: #64748b !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #f8fafc !important;
+  color: #1e293b !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

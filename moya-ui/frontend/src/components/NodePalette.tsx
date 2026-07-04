@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, MessageSquare, Monitor, Wrench, Sparkles, GitBranch, RefreshCw, GitFork, ChevronDown } from 'lucide-react'
+import { Bot, MessageSquare, Monitor, Wrench, Sparkles, GitBranch, RefreshCw, GitFork, ChevronDown, Plug, Network } from 'lucide-react'
 import { NODE_COLORS, NODE_DESCRIPTIONS } from '../constants'
 
 interface PaletteItem {
@@ -23,6 +23,11 @@ const ADVANCED_ITEMS: PaletteItem[] = [
   { type: 'branch',   label: 'Branch',   icon: <GitFork size={15} />,   description: NODE_DESCRIPTIONS.branch },
 ]
 
+const INTEGRATION_ITEMS: PaletteItem[] = [
+  { type: 'mcp', label: 'MCP Server', icon: <Plug size={15} />,    description: NODE_DESCRIPTIONS.mcp },
+  { type: 'a2a', label: 'A2A Agent',  icon: <Network size={15} />, description: NODE_DESCRIPTIONS.a2a },
+]
+
 function PaletteCard({ item }: { item: PaletteItem }) {
   const c = NODE_COLORS[item.type]
 
@@ -36,37 +41,30 @@ function PaletteCard({ item }: { item: PaletteItem }) {
       draggable
       onDragStart={onDragStart}
       title={item.description}
-      className="flex items-center gap-2.5 px-2.5 py-2 bg-white rounded-lg border border-slate-200 cursor-grab active:cursor-grabbing hover:border-slate-300 hover:shadow-sm transition-all select-none group"
+      className="flex items-center gap-2.5 px-2.5 py-2 bg-white rounded-lg border border-slate-200 cursor-grab active:cursor-grabbing hover:border-slate-300 hover:shadow-sm transition-all select-none"
     >
-      <div className={`${c.header} p-1.5 rounded-md ${c.headerText} flex-shrink-0`}>
-        {item.icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-slate-700">{item.label}</p>
-        <p className="text-[10px] text-slate-400 leading-tight line-clamp-1 mt-0.5">{item.description}</p>
-      </div>
+      <div className={`${c.accent} w-[3px] self-stretch rounded-full flex-shrink-0`} />
+      <span className={`${c.headerText} flex-shrink-0`}>{item.icon}</span>
+      <p className="text-xs font-medium text-slate-700">{item.label}</p>
     </div>
   )
 }
 
-function SectionHeader({ label, count, expanded, onToggle }: {
-  label: string; count: number; expanded: boolean; onToggle: () => void
+function SectionHeader({ label, expanded, onToggle }: {
+  label: string; expanded: boolean; onToggle: () => void
 }) {
   return (
     <button
       onClick={onToggle}
       className="w-full flex items-center justify-between px-0.5 py-1 group"
     >
-      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-600 transition-colors">
+      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest group-hover:text-slate-600 transition-colors">
         {label}
       </span>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[10px] text-slate-300 font-medium">{count}</span>
-        <ChevronDown
-          size={11}
-          className={`text-slate-400 transition-transform duration-150 ${expanded ? '' : '-rotate-90'}`}
-        />
-      </div>
+      <ChevronDown
+        size={11}
+        className={`text-slate-400 transition-transform duration-150 ${expanded ? '' : '-rotate-90'}`}
+      />
     </button>
   )
 }
@@ -75,6 +73,9 @@ export function NodePalette() {
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(() => {
     return localStorage.getItem('moya_palette_advanced') === 'true'
   })
+  const [integrationsOpen, setIntegrationsOpen] = useState<boolean>(() => {
+    return localStorage.getItem('moya_palette_integrations') === 'true'
+  })
 
   function toggleAdvanced() {
     const next = !advancedOpen
@@ -82,20 +83,20 @@ export function NodePalette() {
     localStorage.setItem('moya_palette_advanced', String(next))
   }
 
-  return (
-    <div className="w-56 flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="px-3.5 py-3 border-b border-slate-200 bg-white">
-        <h2 className="text-xs font-bold text-slate-700">Node Palette</h2>
-        <p className="text-[10px] text-slate-400 mt-0.5">Drag onto the canvas to add</p>
-      </div>
+  function toggleIntegrations() {
+    const next = !integrationsOpen
+    setIntegrationsOpen(next)
+    localStorage.setItem('moya_palette_integrations', String(next))
+  }
 
+  return (
+    <div className="w-52 flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col overflow-hidden">
       {/* Items */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
         {/* Core */}
         <div>
           <div className="px-0.5 mb-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Core</span>
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Core</span>
           </div>
           <div className="space-y-1.5">
             {CORE_ITEMS.map(item => <PaletteCard key={item.type} item={item} />)}
@@ -106,7 +107,6 @@ export function NodePalette() {
         <div>
           <SectionHeader
             label="Advanced"
-            count={ADVANCED_ITEMS.length}
             expanded={advancedOpen}
             onToggle={toggleAdvanced}
           />
@@ -116,14 +116,22 @@ export function NodePalette() {
             </div>
           )}
         </div>
+
+        {/* Integrations */}
+        <div>
+          <SectionHeader
+            label="Integrations"
+            expanded={integrationsOpen}
+            onToggle={toggleIntegrations}
+          />
+          {integrationsOpen && (
+            <div className="space-y-1.5 mt-2">
+              {INTEGRATION_ITEMS.map(item => <PaletteCard key={item.type} item={item} />)}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Footer tip */}
-      <div className="px-3.5 py-2.5 border-t border-slate-200 bg-white">
-        <p className="text-[10px] text-slate-400 leading-relaxed">
-          Connect nodes to build a Moya pipeline. Python code updates live.
-        </p>
-      </div>
     </div>
   )
 }
