@@ -29,3 +29,5 @@ tmp/
 # Node
 node_modules/
 *.log
+# Example long-term memory output
+moya_memory/
