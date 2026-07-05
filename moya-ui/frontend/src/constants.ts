@@ -35,21 +35,17 @@ export const NODE_DESCRIPTIONS: Record<string, string> = {
   parallel: 'Runs multiple branches concurrently using MOYA\'s ParallelStep. Results are merged (default: concatenated).',
   loop:     'Repeats an agent step until a stop keyword appears in the output, up to a maximum number of iterations.',
   branch:   'Routes execution to one of two branches based on a keyword condition — maps to MOYA\'s BranchStep.',
-  mcp:      'An MCP (Model Context Protocol) server. Connect any MCP-compliant tool server via HTTP/SSE or subprocess and attach it to an Agent to give it those external tools.',
-  a2a:      'A remote agent reachable via the A2A (Agent-to-Agent) protocol. Participates in the flow like a local agent — call specialist agents running on other machines over HTTP.',
 }
 
 export const NODE_DEFAULTS: Record<string, object> = {
   input:    { label: 'Input', message: 'What is artificial intelligence?' },
-  agent:    { label: 'Agent', name: 'my_agent', provider: 'openai', model: 'gpt-4o', systemPrompt: 'You are a helpful assistant.', description: '', tags: [] },
-  tool:     { label: 'Tool', name: 'my_tool', description: 'Does something useful.', parameters: [], mockReturnValue: 'Tool result' },
+  agent:    { label: 'Agent', name: 'my_agent', provider: 'openai', model: 'gpt-4o', systemPrompt: 'You are a helpful assistant.', description: '', tags: [], endpointUrl: 'http://localhost:8001', timeoutSeconds: 60, toolIds: [], inlineTools: [], memory: {}, mcpServers: [] },
+  tool:     { label: 'Tool', name: 'my_tool', description: 'Does something useful.', parameters: [], kind: 'python', code: '', method: 'GET', url: '', headers: '', body: '', mockReturnValue: 'Tool result' },
   skill:    { label: 'Skill', name: 'my_skill', description: '', promptSnippet: 'Always be concise.', tags: [] },
   output:   { label: 'Output', result: '' },
   parallel: { label: 'Parallel', mergeStrategy: 'concat', branchCount: 2 },
   loop:     { label: 'Loop', stopKeyword: 'DONE', maxIterations: 3 },
   branch:   { label: 'Branch', conditionKeyword: 'yes' },
-  mcp:      { label: 'MCP Server', name: 'my_mcp', transport: 'http', url: 'http://localhost:8080/sse', command: 'python3', args: 'server.py', apiKey: '' },
-  a2a:      { label: 'Remote Agent', name: 'remote_agent', endpointUrl: 'http://localhost:8001', description: 'A remote specialist agent', timeoutSeconds: 60 },
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────
@@ -117,34 +113,94 @@ export const TEMPLATE_LOOP: { nodes: Node[]; edges: Edge[]; name: string } = {
   ] as Edge[],
 }
 
-export const TEMPLATE_MCP_TOOLS: { nodes: Node[]; edges: Edge[]; name: string } = {
-  name: 'MCP Tools',
+// Mirrors examples/research_assistant — 2 agents, an inline tool, and memory.
+export const TEMPLATE_RESEARCH_ASSISTANT: { nodes: Node[]; edges: Edge[]; name: string } = {
+  name: 'Research Assistant (tools + memory)',
   nodes: [
-    { id: 'input-1', type: 'input',  position: { x: 60,  y: 220 }, data: { label: 'Input', message: 'Search for recent papers on large language models.' } },
-    { id: 'mcp-1',   type: 'mcp',   position: { x: 340, y: 60  }, data: { label: 'Search Tools', name: 'search_server', transport: 'http', url: 'http://localhost:8080/sse', command: 'python3', args: 'mcp_server.py', apiKey: '' } },
-    { id: 'agent-1', type: 'agent', position: { x: 640, y: 180 }, data: { label: 'Research Agent', name: 'research_agent', provider: 'openai', model: 'gpt-4o', systemPrompt: 'You are a research assistant. Use the available tools to answer the user\'s query thoroughly.', description: 'Research assistant with MCP tools', tags: ['research'] } },
-    { id: 'output-1',type: 'output',position: { x: 960, y: 220 }, data: { label: 'Output', result: '' } },
+    { id: 'input-1', type: 'input', position: { x: 40, y: 240 }, data: { label: 'Input', message: 'What is quantum computing?' } },
+    { id: 'agent-1', type: 'agent', position: { x: 340, y: 150 }, data: {
+        label: 'Researcher', name: 'researcher', provider: 'openai', model: 'gpt-4o',
+        systemPrompt: 'You are a meticulous researcher. Always call the search_knowledge tool to gather facts before answering, and mention what you found.',
+        description: 'Gathers facts using tools', tags: ['research'],
+        inlineTools: [{
+          name: 'search_knowledge', description: 'Look up factual notes on a topic.',
+          parameters: [{ name: 'topic', type: 'str', description: 'the subject to look up' }],
+          kind: 'python',
+          code: 'db = {\n    "quantum computing": "Qubits use superposition and entanglement to outperform classical bits on some problems.",\n    "classical computing": "Classical computers store data in bits that are strictly 0 or 1.",\n}\nreturn db.get(topic.lower(), "No entry for " + topic)',
+          method: 'GET', url: '', headers: '', body: '', mockReturnValue: 'Qubits use superposition and entanglement.',
+        }],
+        memory: { shortTerm: { enabled: true, windowSize: 8 }, longTerm: { enabled: true, path: './moya_memory/research' } },
+        toolIds: [], mcpServers: [],
+    } },
+    { id: 'agent-2', type: 'agent', position: { x: 720, y: 150 }, data: {
+        label: 'Writer', name: 'writer', provider: 'openai', model: 'gpt-4o',
+        systemPrompt: 'You are a clear writer. Rewrite the researcher\'s findings into a concise, friendly explanation for a non-expert.',
+        description: 'Turns research into a clear answer', tags: ['writing'],
+        memory: { shortTerm: { enabled: true, windowSize: 8 } },
+        toolIds: [], inlineTools: [], mcpServers: [],
+    } },
+    { id: 'output-1', type: 'output', position: { x: 1040, y: 240 }, data: { label: 'Output', result: '' } },
   ] as Node[],
   edges: [
-    { id: 'e1', source: 'input-1', target: 'agent-1', animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } },
-    { id: 'e2', source: 'mcp-1',   target: 'agent-1', animated: true, style: { stroke: '#f59e0b', strokeWidth: 2 } },
-    { id: 'e3', source: 'agent-1', target: 'output-1',animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } },
+    { id: 'e1', source: 'input-1', target: 'agent-1' },
+    { id: 'e2', source: 'agent-1', target: 'agent-2' },
+    { id: 'e3', source: 'agent-2', target: 'output-1' },
   ] as Edge[],
 }
 
-export const TEMPLATE_A2A_PIPELINE: { nodes: Node[]; edges: Edge[]; name: string } = {
-  name: 'A2A Pipeline',
+// Mirrors examples/support_desk — triage routes to a specialist; tools + memory.
+export const TEMPLATE_SUPPORT_DESK: { nodes: Node[]; edges: Edge[]; name: string } = {
+  name: 'Support Desk (routing + tools + memory)',
   nodes: [
-    { id: 'input-1',  type: 'input',  position: { x: 60,  y: 220 }, data: { label: 'Input',        message: 'Analyse the sentiment of our latest customer reviews.' } },
-    { id: 'agent-1',  type: 'agent',  position: { x: 360, y: 150 }, data: { label: 'Orchestrator', name: 'orchestrator', provider: 'openai', model: 'gpt-4o', systemPrompt: 'You are an orchestrator. Summarise the task clearly before passing it to the specialist.', description: 'Routes to specialist agents', tags: ['orchestrator'] } },
-    { id: 'a2a-1',   type: 'a2a',   position: { x: 700, y: 150 }, data: { label: 'Sentiment Agent', name: 'sentiment_agent', endpointUrl: 'http://localhost:8001', description: 'Remote sentiment specialist', timeoutSeconds: 60 } },
-    { id: 'output-1', type: 'output', position: { x: 1020, y: 220 }, data: { label: 'Output',       result: '' } },
+    { id: 'input-1', type: 'input', position: { x: 40, y: 300 }, data: { label: 'Input', message: 'Where is my order A1001?' } },
+    { id: 'agent-1', type: 'agent', position: { x: 320, y: 240 }, data: {
+        label: 'Triage', name: 'triage', provider: 'openai', model: 'gpt-4o',
+        systemPrompt: 'Classify the customer message. If it is about shipping, tracking or delivery, reply with the word "ship". Otherwise reply with the word "bill". Reply with only that one word.',
+        description: 'Routes to the right specialist', tags: ['router'],
+        memory: { shortTerm: { enabled: true, windowSize: 10 } },
+        toolIds: [], inlineTools: [], mcpServers: [],
+    } },
+    { id: 'branch-1', type: 'branch', position: { x: 620, y: 250 }, data: { label: 'Ship or bill?', conditionKeyword: 'ship' } },
+    { id: 'agent-2', type: 'agent', position: { x: 900, y: 120 }, data: {
+        label: 'Shipping', name: 'shipping_agent', provider: 'openai', model: 'gpt-4o',
+        systemPrompt: 'You are a shipping specialist. Use lookup_order to check status and ETA. Reuse an order id from the conversation if present.',
+        description: 'Delivery & tracking', tags: ['support'],
+        inlineTools: [{
+          name: 'lookup_order', description: 'Look up an order\'s status and ETA by id.',
+          parameters: [{ name: 'order_id', type: 'str', description: 'e.g. A1001' }],
+          kind: 'python',
+          code: 'orders = {\n    "A1001": "shipped, ETA 2 days",\n    "A1002": "processing, ETA 5 days",\n}\nreturn orders.get(order_id.upper(), "No order found: " + order_id)',
+          method: 'GET', url: '', headers: '', body: '', mockReturnValue: 'shipped, ETA 2 days',
+        }],
+        memory: { shortTerm: { enabled: true, windowSize: 10 }, longTerm: { enabled: true, path: './moya_memory/support' } },
+        toolIds: [], mcpServers: [],
+    } },
+    { id: 'agent-3', type: 'agent', position: { x: 900, y: 380 }, data: {
+        label: 'Billing', name: 'billing_agent', provider: 'openai', model: 'gpt-4o',
+        systemPrompt: 'You are a billing specialist. Use refund_policy for refund questions. Reuse an order id from the conversation if present.',
+        description: 'Refunds & charges', tags: ['support'],
+        inlineTools: [{
+          name: 'refund_policy', description: 'Return the store refund policy.',
+          parameters: [], kind: 'python',
+          code: 'return "Refunds within 30 days of delivery for unused items, processed in 5-7 business days."',
+          method: 'GET', url: '', headers: '', body: '', mockReturnValue: 'Refunds within 30 days, processed in 5-7 business days.',
+        }],
+        memory: { shortTerm: { enabled: true, windowSize: 10 }, longTerm: { enabled: true, path: './moya_memory/support' } },
+        toolIds: [], mcpServers: [],
+    } },
+    { id: 'output-1', type: 'output', position: { x: 1220, y: 300 }, data: { label: 'Output', result: '' } },
   ] as Node[],
   edges: [
-    { id: 'e1', source: 'input-1',  target: 'agent-1',  animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } },
-    { id: 'e2', source: 'agent-1',  target: 'a2a-1',    animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } },
-    { id: 'e3', source: 'a2a-1',   target: 'output-1', animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } },
+    { id: 'e1', source: 'input-1', target: 'agent-1' },
+    { id: 'e2', source: 'agent-1', target: 'branch-1' },
+    { id: 'e3', source: 'branch-1', sourceHandle: 'true',  target: 'agent-2' },
+    { id: 'e4', source: 'branch-1', sourceHandle: 'false', target: 'agent-3' },
+    { id: 'e5', source: 'agent-2', target: 'output-1' },
+    { id: 'e6', source: 'agent-3', target: 'output-1' },
   ] as Edge[],
 }
 
-export const TEMPLATES = [TEMPLATE_SIMPLE, TEMPLATE_RESEARCH_WRITE, TEMPLATE_PARALLEL, TEMPLATE_LOOP, TEMPLATE_MCP_TOOLS, TEMPLATE_A2A_PIPELINE]
+export const TEMPLATES = [
+  TEMPLATE_SIMPLE, TEMPLATE_RESEARCH_WRITE, TEMPLATE_PARALLEL, TEMPLATE_LOOP,
+  TEMPLATE_RESEARCH_ASSISTANT, TEMPLATE_SUPPORT_DESK,
+]

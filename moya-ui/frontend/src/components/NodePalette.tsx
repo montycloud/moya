@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, MessageSquare, Monitor, Wrench, Sparkles, GitBranch, RefreshCw, GitFork, ChevronDown, Plug, Network } from 'lucide-react'
+import { Bot, MessageSquare, Monitor, Wrench, Sparkles, GitBranch, RefreshCw, GitFork, ChevronDown } from 'lucide-react'
 import { NODE_COLORS, NODE_DESCRIPTIONS } from '../constants'
 
 interface PaletteItem {
@@ -21,11 +21,6 @@ const ADVANCED_ITEMS: PaletteItem[] = [
   { type: 'parallel', label: 'Parallel', icon: <GitBranch size={15} />, description: NODE_DESCRIPTIONS.parallel },
   { type: 'loop',     label: 'Loop',     icon: <RefreshCw size={15} />, description: NODE_DESCRIPTIONS.loop },
   { type: 'branch',   label: 'Branch',   icon: <GitFork size={15} />,   description: NODE_DESCRIPTIONS.branch },
-]
-
-const INTEGRATION_ITEMS: PaletteItem[] = [
-  { type: 'mcp', label: 'MCP Server', icon: <Plug size={15} />,    description: NODE_DESCRIPTIONS.mcp },
-  { type: 'a2a', label: 'A2A Agent',  icon: <Network size={15} />, description: NODE_DESCRIPTIONS.a2a },
 ]
 
 function PaletteCard({ item }: { item: PaletteItem }) {
@@ -73,20 +68,11 @@ export function NodePalette() {
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(() => {
     return localStorage.getItem('moya_palette_advanced') === 'true'
   })
-  const [integrationsOpen, setIntegrationsOpen] = useState<boolean>(() => {
-    return localStorage.getItem('moya_palette_integrations') === 'true'
-  })
 
   function toggleAdvanced() {
     const next = !advancedOpen
     setAdvancedOpen(next)
     localStorage.setItem('moya_palette_advanced', String(next))
-  }
-
-  function toggleIntegrations() {
-    const next = !integrationsOpen
-    setIntegrationsOpen(next)
-    localStorage.setItem('moya_palette_integrations', String(next))
   }
 
   return (
@@ -113,20 +99,6 @@ export function NodePalette() {
           {advancedOpen && (
             <div className="space-y-1.5 mt-2">
               {ADVANCED_ITEMS.map(item => <PaletteCard key={item.type} item={item} />)}
-            </div>
-          )}
-        </div>
-
-        {/* Integrations */}
-        <div>
-          <SectionHeader
-            label="Integrations"
-            expanded={integrationsOpen}
-            onToggle={toggleIntegrations}
-          />
-          {integrationsOpen && (
-            <div className="space-y-1.5 mt-2">
-              {INTEGRATION_ITEMS.map(item => <PaletteCard key={item.type} item={item} />)}
             </div>
           )}
         </div>

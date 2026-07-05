@@ -2,8 +2,7 @@ import type { Node, Edge } from '@xyflow/react'
 import type {
   AgentNodeData, ToolNodeData, SkillNodeData,
   InputNodeData, ParallelNodeData, LoopNodeData, BranchNodeData,
-  MCPNodeData, A2ANodeData,
-  ToolParameter,
+  ToolParameter, RegistryTool, InlineTool, AgentMCP,
 } from '../types'
 
 function toSnakeCase(s: string): string {
@@ -13,6 +12,42 @@ function toSnakeCase(s: string): string {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
     || 'agent'
+}
+
+// Python double-quoted string literal (JSON escaping is a valid subset of Python's).
+function pyStr(s: string): string {
+  return JSON.stringify(s ?? '')
+}
+
+// Inline escaping for content placed inside an existing "..." literal.
+function py(s: string): string {
+  return (s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
+}
+
+function paramSig(params: ToolParameter[]): string {
+  return (params ?? []).map(p => `${p.name}: ${p.type || 'str'}`).join(', ')
+}
+
+function parseHeaders(raw: string): [string, string][] {
+  return (raw || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const i = l.indexOf(':')
+    if (i < 0) return null
+    return [l.slice(0, i).trim(), l.slice(i + 1).trim()] as [string, string]
+  }).filter(Boolean) as [string, string][]
+}
+
+// Common executable-tool shape (RegistryTool, InlineTool, and ToolNodeData all satisfy this).
+interface ToolSpec {
+  name: string
+  description: string
+  parameters: ToolParameter[]
+  kind: 'python' | 'api'
+  code: string
+  method: string
+  url: string
+  headers: string
+  body: string
+  mockReturnValue: string
 }
 
 function topologicalSort(nodes: Node[], successors: Map<string, string[]>, predecessors: Map<string, string[]>): Node[] {
@@ -35,24 +70,24 @@ function topologicalSort(nodes: Node[], successors: Map<string, string[]>, prede
   return sorted
 }
 
-export function generateCode(nodes: Node[], edges: Edge[]): string {
+export function generateCode(nodes: Node[], edges: Edge[], registryTools: RegistryTool[] = []): string {
   if (nodes.length === 0) {
     return '# Drag nodes onto the canvas to start building your flow.\n# Generated Python code will appear here.'
   }
 
   const nodeMap = new Map(nodes.map(n => [n.id, n]))
+  const toolLib = new Map(registryTools.map(t => [t.id, t]))
 
-  // Classify edges: capability (tool/skill/mcp → agent) vs flow
+  // Classify edges: capability (tool/skill → agent) vs flow.
   const flowEdges = edges.filter(e => {
     const src = nodeMap.get(e.source)
-    return src && src.type !== 'tool' && src.type !== 'skill' && src.type !== 'mcp'
+    return src && src.type !== 'tool' && src.type !== 'skill'
   })
   const capEdges = edges.filter(e => {
     const src = nodeMap.get(e.source)
-    return src && (src.type === 'tool' || src.type === 'skill' || src.type === 'mcp')
+    return src && (src.type === 'tool' || src.type === 'skill')
   })
 
-  // Build flow adjacency
   const successors = new Map<string, string[]>()
   const predecessors = new Map<string, string[]>()
   for (const e of flowEdges) {
@@ -62,184 +97,183 @@ export function generateCode(nodes: Node[], edges: Edge[]): string {
     predecessors.get(e.target)!.push(e.source)
   }
 
-  // Topological sort (flow nodes only — exclude capability nodes)
-  const flowNodes = nodes.filter(n => n.type !== 'tool' && n.type !== 'skill' && n.type !== 'mcp')
+  const flowNodes = nodes.filter(n => n.type !== 'tool' && n.type !== 'skill')
   const sorted = topologicalSort(flowNodes, successors, predecessors)
 
-  // Map agent → its attached tool/skill/mcp node IDs
-  const agentTools  = new Map<string, string[]>()
-  const agentSkills = new Map<string, string[]>()
-  const agentMCPs   = new Map<string, string[]>()
+  // Map agent → attached edge tool/skill node IDs.
+  const agentEdgeTools = new Map<string, string[]>()
+  const agentSkills    = new Map<string, string[]>()
   for (const e of capEdges) {
     const src = nodeMap.get(e.source)
     if (!src) continue
-    if (src.type === 'tool') {
-      if (!agentTools.has(e.target)) agentTools.set(e.target, [])
-      agentTools.get(e.target)!.push(e.source)
-    } else if (src.type === 'skill') {
-      if (!agentSkills.has(e.target)) agentSkills.set(e.target, [])
-      agentSkills.get(e.target)!.push(e.source)
-    } else if (src.type === 'mcp') {
-      if (!agentMCPs.has(e.target)) agentMCPs.set(e.target, [])
-      agentMCPs.get(e.target)!.push(e.source)
-    }
+    if (src.type === 'tool')  (agentEdgeTools.get(e.target) ?? agentEdgeTools.set(e.target, []).get(e.target)!).push(e.source)
+    else if (src.type === 'skill') (agentSkills.get(e.target) ?? agentSkills.set(e.target, []).get(e.target)!).push(e.source)
   }
 
-  // Determine which step imports are needed
+  const agentNodes = nodes.filter(n => n.type === 'agent')
+
+  // ── Per-agent capability inspection ────────────────────────────────────────
+  interface AgentCaps {
+    edgeToolIds: string[]
+    registryToolIds: string[]
+    inlineTools: InlineTool[]
+    inspectorMcps: AgentMCP[]
+    shortTerm?: { enabled: boolean; windowSize: number }
+    longTerm?:  { enabled: boolean; path: string }
+    isA2A: boolean
+  }
+  const caps = new Map<string, AgentCaps>()
+  for (const an of agentNodes) {
+    const d = an.data as unknown as AgentNodeData
+    caps.set(an.id, {
+      edgeToolIds:     agentEdgeTools.get(an.id) ?? [],
+      registryToolIds: (d.toolIds ?? []).filter(id => toolLib.has(id)),
+      inlineTools:     d.inlineTools ?? [],
+      inspectorMcps:   d.mcpServers ?? [],
+      shortTerm:       d.memory?.shortTerm,
+      longTerm:        d.memory?.longTerm,
+      isA2A:           d.provider === 'a2a',
+    })
+  }
+  const hasTools  = (c: AgentCaps) => !c.isA2A && (c.edgeToolIds.length + c.registryToolIds.length + c.inlineTools.length > 0)
+  const hasMcp    = (c: AgentCaps) => !c.isA2A && c.inspectorMcps.length > 0
+  const hasMemory = (c: AgentCaps) => !c.isA2A && !!(c.shortTerm?.enabled || c.longTerm?.enabled)
+  const needsReg  = (c: AgentCaps) => hasTools(c) || hasMcp(c)
+
+  const allCaps = [...caps.values()]
+  const anyTools  = allCaps.some(hasTools)
+  const anyMcp    = allCaps.some(hasMcp)
+  const anyMemory = allCaps.some(hasMemory)
+  const anyA2A    = allCaps.some(c => c.isA2A)
+
+  // ── Import assembly ─────────────────────────────────────────────────────────
   const hasParallel = nodes.some(n => n.type === 'parallel')
   const hasLoop     = nodes.some(n => n.type === 'loop')
   const hasBranch   = nodes.some(n => n.type === 'branch')
-  const hasTools    = nodes.some(n => n.type === 'tool')
   const hasSkills   = nodes.some(n => n.type === 'skill')
-  const hasMCP      = nodes.some(n => n.type === 'mcp')
-  const hasA2A      = nodes.some(n => n.type === 'a2a')
 
   const stepImports = ['Pipeline', 'AgentStep']
   if (hasParallel) stepImports.push('ParallelStep')
   if (hasLoop)     stepImports.push('LoopStep')
   if (hasBranch)   stepImports.push('BranchStep')
-  if (hasTools || hasMCP) stepImports.push('ToolRegistry')
-  if (hasTools)    stepImports.push('Tool')
+  if (anyTools || anyMcp) stepImports.push('ToolRegistry', 'Tool')
   if (hasSkills)   stepImports.push('Skill')
 
   const lines: string[] = []
-
-  // ── Imports ──────────────────────────────────────────────────────────────
   lines.push(`from moya import create_agent, ${stepImports.join(', ')}`)
-  if (hasMCP) lines.push('from moya.mcp import MCPClient')
-  if (hasA2A) lines.push('from moya.a2a.client import A2AAgent, A2AAgentConfig')
+  if (anyMcp) {
+    const usesAuth = allCaps.some(c => c.inspectorMcps.some(m => m.transport === 'http' && m.apiKey))
+    lines.push(usesAuth ? 'from moya.mcp import MCPClient, MCPAuthConfig' : 'from moya.mcp import MCPClient')
+  }
+  if (anyA2A) lines.push('from moya.a2a.client import A2AAgent, A2AAgentConfig')
+  if (anyMemory) {
+    const memImports: string[] = []
+    if (allCaps.some(c => c.shortTerm?.enabled)) memImports.push('ShortTermMemory')
+    if (allCaps.some(c => c.longTerm?.enabled))  memImports.push('LongTermMemory')
+    if (allCaps.some(c => c.shortTerm?.enabled && c.longTerm?.enabled)) memImports.push('CompositeMemory')
+    lines.push(`from moya.memory import ${memImports.join(', ')}`)
+  }
   lines.push('')
 
-  // ── MCP Servers ───────────────────────────────────────────────────────────
-  const mcpNodes = nodes.filter(n => n.type === 'mcp')
-  if (mcpNodes.length > 0) {
-    lines.push('# ── MCP Servers ──────────────────────────────────────────────────────────')
-    lines.push('tool_registry = ToolRegistry()')
-    for (const mn of mcpNodes) {
-      const d = mn.data as unknown as MCPNodeData
-      const varName = `${toSnakeCase(d.name || 'mcp')}_client`
-      if ((d.transport ?? 'http') === 'http') {
-        const authArg = d.apiKey ? `, auth=MCPClient.MCPAuthConfig(bearer_token="${d.apiKey.replace(/"/g, '\\"')}")` : ''
-        lines.push(`${varName} = MCPClient.from_url("${(d.url || 'http://localhost:8080/sse').replace(/"/g, '\\"')}", name="${(d.name || 'mcp').replace(/"/g, '\\"')}"${authArg})`)
-      } else {
-        const rawArgs = (d.args || '').trim()
-        const argsArray = rawArgs ? `, args=[${rawArgs.split(/\s+/).map(a => `"${a.replace(/"/g, '\\"')}"`).join(', ')}]` : ''
-        lines.push(`${varName} = MCPClient.from_subprocess("${(d.command || 'python3').replace(/"/g, '\\"')}"${argsArray}, name="${(d.name || 'mcp').replace(/"/g, '\\"')}")`)
-      }
-      lines.push(`for _tool in ${varName}.get_tools():`)
-      lines.push(`    tool_registry.register_tool(_tool)`)
-    }
-    lines.push('')
+  // ── Shared tool function definitions (edge-tool nodes + used registry tools) ─
+  const edgeToolNodes = nodes.filter(n => n.type === 'tool')
+  const usedRegistryIds = new Set<string>()
+  for (const c of allCaps) c.registryToolIds.forEach(id => usedRegistryIds.add(id))
+
+  if (edgeToolNodes.length > 0 || usedRegistryIds.size > 0) {
+    lines.push('# ── Tool functions ───────────────────────────────────────────────────────')
+  }
+  for (const tn of edgeToolNodes) {
+    emitToolFn(lines, `tool_${toSnakeCase((tn.data as unknown as ToolNodeData).name)}`, tn.data as unknown as ToolSpec)
+  }
+  for (const id of usedRegistryIds) {
+    emitToolFn(lines, `reg_${toSnakeCase(toolLib.get(id)!.name)}`, toolLib.get(id)! as unknown as ToolSpec)
   }
 
-  // ── Tools ─────────────────────────────────────────────────────────────────
-  const toolNodes = nodes.filter(n => n.type === 'tool')
-  if (toolNodes.length > 0) {
-    if (mcpNodes.length === 0) {
-      lines.push('# ── Tools ────────────────────────────────────────────────────────────────')
-      lines.push('tool_registry = ToolRegistry()')
-      lines.push('')
-    } else {
-      lines.push('# ── Additional local tools ───────────────────────────────────────────────')
-    }
-    for (const tn of toolNodes) {
-      const d = tn.data as unknown as ToolNodeData
-      const fnName = `mock_${toSnakeCase(d.name)}`
-      const paramSig = (d.parameters ?? []).map((p: ToolParameter) => `${p.name}: ${p.type || 'str'}`).join(', ')
-      lines.push(`def ${fnName}(${paramSig}) -> str:`)
-      lines.push(`    """${d.description || d.name}`)
-      if ((d.parameters ?? []).length > 0) {
-        lines.push('')
-        lines.push('    Parameters:')
-        for (const p of d.parameters) {
-          lines.push(`    - ${p.name}: ${p.description || p.name}`)
-        }
-      }
-      lines.push('    """')
-      lines.push(`    return "${(d.mockReturnValue || 'Tool result').replace(/"/g, '\\"')}"`)
-      lines.push('')
-      lines.push(`tool_registry.register_tool(Tool(`)
-      lines.push(`    name="${d.name}",`)
-      lines.push(`    description="${(d.description || d.name).replace(/"/g, '\\"')}",`)
-      lines.push(`    function=${fnName},`)
-      lines.push(`)`)
-      lines.push('')
-    }
-  }
-
-  // ── Skills ────────────────────────────────────────────────────────────────
+  // ── Skills ──────────────────────────────────────────────────────────────────
   const skillNodes = nodes.filter(n => n.type === 'skill')
   if (skillNodes.length > 0) {
     lines.push('# ── Skills ───────────────────────────────────────────────────────────────')
     for (const sn of skillNodes) {
       const d = sn.data as unknown as SkillNodeData
-      const varName = `${toSnakeCase(d.name)}_skill`
-      lines.push(`${varName} = Skill(`)
-      lines.push(`    name="${d.name}",`)
-      lines.push(`    description="${(d.description || d.name).replace(/"/g, '\\"')}",`)
-      if (d.promptSnippet) {
-        lines.push(`    prompt_snippet="${d.promptSnippet.replace(/"/g, '\\"').replace(/\n/g, '\\n')}",`)
-      }
+      lines.push(`${toSnakeCase(d.name)}_skill = Skill(`)
+      lines.push(`    name="${py(d.name)}",`)
+      lines.push(`    description="${py(d.description || d.name)}",`)
+      if (d.promptSnippet) lines.push(`    prompt_snippet="${py(d.promptSnippet)}",`)
       lines.push(`)`)
     }
     lines.push('')
   }
 
   // ── Agents ────────────────────────────────────────────────────────────────
-  const agentNodes = nodes.filter(n => n.type === 'agent')
   if (agentNodes.length > 0) {
     lines.push('# ── Agents ───────────────────────────────────────────────────────────────')
     for (const an of agentNodes) {
       const d = an.data as unknown as AgentNodeData
       const varName = toSnakeCase(d.name || d.label)
-      const toolIds  = agentTools.get(an.id)  ?? []
-      const skillIds = agentSkills.get(an.id) ?? []
-      const skillVars = skillIds
-        .map(sid => nodeMap.get(sid))
-        .filter(Boolean)
-        .map(sn => `${toSnakeCase((sn!.data as unknown as SkillNodeData).name)}_skill`)
+      const c = caps.get(an.id)!
+
+      // A2A / remote agent — a thin proxy, no local model/tools/memory.
+      if (c.isA2A) {
+        lines.push(`${varName} = A2AAgent(A2AAgentConfig(`)
+        lines.push(`    agent_name="${py(d.name || d.label)}",`)
+        lines.push(`    agent_type="a2a",`)
+        lines.push(`    description="${py(d.description || 'Remote A2A agent')}",`)
+        lines.push(`    endpoint_url="${py(d.endpointUrl || 'http://localhost:8001')}",`)
+        if ((d.timeoutSeconds ?? 60) !== 60) lines.push(`    timeout_seconds=${d.timeoutSeconds},`)
+        lines.push(`))`)
+        lines.push('')
+        continue
+      }
+
+      // Per-agent tool registry
+      if (needsReg(c)) {
+        lines.push(`${varName}_registry = ToolRegistry()`)
+        for (const tid of c.edgeToolIds) {
+          const td = nodeMap.get(tid)?.data as unknown as ToolNodeData | undefined
+          if (!td) continue
+          lines.push(`${varName}_registry.register_tool(Tool(name="${py(td.name)}", description="${py(td.description || td.name)}", function=tool_${toSnakeCase(td.name)}))`)
+        }
+        for (const rid of c.registryToolIds) {
+          const t = toolLib.get(rid)!
+          lines.push(`${varName}_registry.register_tool(Tool(name="${py(t.name)}", description="${py(t.description || t.name)}", function=reg_${toSnakeCase(t.name)}))`)
+        }
+        c.inlineTools.forEach((t, i) => {
+          const fn = `${varName}_${toSnakeCase(t.name) || `tool_${i}`}`
+          emitToolFn(lines, fn, t as unknown as ToolSpec)
+          lines.push(`${varName}_registry.register_tool(Tool(name="${py(t.name)}", description="${py(t.description || t.name)}", function=${fn}))`)
+        })
+        c.inspectorMcps.forEach((m, i) => {
+          const clientVar = `${varName}_mcp_${i}`
+          lines.push(`${clientVar} = ${mcpExpr(m)}`)
+          lines.push(`for _tool in ${clientVar}.get_tools():`)
+          lines.push(`    ${varName}_registry.register_tool(_tool)`)
+        })
+      }
+
+      // Per-agent memory
+      if (hasMemory(c)) emitMemory(lines, varName, c)
 
       lines.push(`${varName} = create_agent(`)
       lines.push(`    "${d.provider}",`)
-      lines.push(`    name="${d.name || d.label}",`)
-      lines.push(`    description="${(d.description || `${d.label} agent`).replace(/"/g, '\\"')}",`)
-      lines.push(`    model="${d.model}",`)
-      if (d.systemPrompt) {
-        lines.push(`    system_prompt="${d.systemPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')}",`)
-      }
-      if ((d.tags ?? []).length > 0) {
-        lines.push(`    tags=${JSON.stringify(d.tags)},`)
-      }
-      const mcpIds = agentMCPs.get(an.id) ?? []
-      if (toolIds.length > 0 || mcpIds.length > 0) lines.push(`    tool_registry=tool_registry,`)
-      if (skillVars.length > 0)  lines.push(`    skills=[${skillVars.join(', ')}],`)
+      lines.push(`    name="${py(d.name || d.label)}",`)
+      lines.push(`    description="${py(d.description || `${d.label} agent`)}",`)
+      lines.push(`    model="${py(d.model)}",`)
+      if (d.systemPrompt) lines.push(`    system_prompt="${py(d.systemPrompt)}",`)
+      if ((d.tags ?? []).length > 0) lines.push(`    tags=${JSON.stringify(d.tags)},`)
+      const skillVars = (agentSkills.get(an.id) ?? [])
+        .map(sid => nodeMap.get(sid))
+        .filter(Boolean)
+        .map(sn => `${toSnakeCase((sn!.data as unknown as SkillNodeData).name)}_skill`)
+      if (needsReg(c))  lines.push(`    tool_registry=${varName}_registry,`)
+      if (hasMemory(c)) lines.push(`    memory=${varName}_memory,`)
+      if (skillVars.length > 0) lines.push(`    skills=[${skillVars.join(', ')}],`)
       lines.push(`)`)
+      lines.push('')
     }
-    lines.push('')
   }
 
-  // ── A2A Remote Agents ─────────────────────────────────────────────────────
-  const a2aNodes = nodes.filter(n => n.type === 'a2a')
-  if (a2aNodes.length > 0) {
-    lines.push('# ── A2A Remote Agents ────────────────────────────────────────────────────')
-    for (const an of a2aNodes) {
-      const d = an.data as unknown as A2ANodeData
-      const varName = toSnakeCase(d.name || d.label)
-      lines.push(`${varName}_config = A2AAgentConfig(`)
-      lines.push(`    agent_name="${(d.name || 'remote_agent').replace(/"/g, '\\"')}",`)
-      lines.push(`    agent_type="a2a",`)
-      lines.push(`    description="${(d.description || 'Remote A2A agent').replace(/"/g, '\\"')}",`)
-      lines.push(`    endpoint_url="${(d.endpointUrl || 'http://localhost:8001').replace(/"/g, '\\"')}",`)
-      if ((d.timeoutSeconds ?? 60) !== 60) {
-        lines.push(`    timeout_seconds=${d.timeoutSeconds},`)
-      }
-      lines.push(`)`)
-      lines.push(`${varName} = A2AAgent(${varName}_config)`)
-    }
-    lines.push('')
-  }
-
-  // ── Pipeline steps ────────────────────────────────────────────────────────
+  // ── Pipeline steps (flow logic) ─────────────────────────────────────────────
   const inputNode = sorted.find(n => n.type === 'input')
   const inputMessage = (inputNode?.data as unknown as InputNodeData)?.message || 'Enter your message here'
 
@@ -249,14 +283,10 @@ export function generateCode(nodes: Node[], edges: Edge[]): string {
   for (const node of sorted) {
     if (consumed.has(node.id)) continue
     if (node.type === 'input' || node.type === 'output') continue
-    if (node.type === 'tool' || node.type === 'skill' || node.type === 'mcp') continue
+    if (node.type === 'tool' || node.type === 'skill') continue
 
     if (node.type === 'agent') {
       const d = node.data as unknown as AgentNodeData
-      steps.push(`    AgentStep(${toSnakeCase(d.name || d.label)}),`)
-
-    } else if (node.type === 'a2a') {
-      const d = node.data as unknown as A2ANodeData
       steps.push(`    AgentStep(${toSnakeCase(d.name || d.label)}),`)
 
     } else if (node.type === 'parallel') {
@@ -283,7 +313,7 @@ export function generateCode(nodes: Node[], edges: Edge[]): string {
       if (loopAgent) {
         consumed.add(loopAgent.id)
         const ad = loopAgent.data as unknown as AgentNodeData
-        const kw = (d.stopKeyword || 'DONE').replace(/"/g, '\\"')
+        const kw = py(d.stopKeyword || 'DONE')
         steps.push(`    LoopStep(`)
         steps.push(`        step=AgentStep(${toSnakeCase(ad.name || ad.label)}),`)
         steps.push(`        until=lambda ctx: "${kw}" in ctx.output,`)
@@ -293,7 +323,7 @@ export function generateCode(nodes: Node[], edges: Edge[]): string {
 
     } else if (node.type === 'branch') {
       const d = node.data as unknown as BranchNodeData
-      const kw = (d.conditionKeyword || 'yes').replace(/"/g, '\\"')
+      const kw = py((d.conditionKeyword || 'yes').toLowerCase())
       const trueEdge  = flowEdges.find(e => e.source === node.id && e.sourceHandle === 'true')
       const falseEdge = flowEdges.find(e => e.source === node.id && e.sourceHandle === 'false')
       const trueNode  = trueEdge  ? nodeMap.get(trueEdge.target)  : null
@@ -330,9 +360,83 @@ export function generateCode(nodes: Node[], edges: Edge[]): string {
   lines.push('# ── Run ──────────────────────────────────────────────────────────────────')
   lines.push(`result = pipeline.run(`)
   lines.push(`    thread_id="flow-1",`)
-  lines.push(`    message="${inputMessage.replace(/"/g, '\\"').replace(/\n/g, '\\n')}",`)
+  lines.push(`    message="${py(inputMessage)}",`)
   lines.push(`)`)
   lines.push('print(result)')
 
   return lines.join('\n')
+}
+
+// ── Emit helpers ──────────────────────────────────────────────────────────────
+
+function emitToolFn(lines: string[], fnName: string, spec: ToolSpec) {
+  const sig = paramSig(spec.parameters)
+  const doc = (spec.description || fnName).replace(/"/g, "'").replace(/\n/g, ' ')
+  lines.push(`def ${fnName}(${sig}) -> str:`)
+  lines.push(`    """${doc}"""`)
+
+  if ((spec.kind ?? 'python') === 'api') {
+    const paramNames = (spec.parameters ?? []).map(p => p.name)
+    const argsDict = `{${paramNames.map(n => `"${n}": ${n}`).join(', ')}}`
+    const method = (spec.method || 'GET').toLowerCase()
+    const hasBody = method !== 'get' && method !== 'delete' && !!(spec.body || '').trim()
+
+    // Headers — default Content-Type to JSON when a body template is provided.
+    const hdrs = parseHeaders(spec.headers)
+    if (hasBody && !hdrs.some(([k]) => k.toLowerCase() === 'content-type')) {
+      hdrs.push(['Content-Type', 'application/json'])
+    }
+    const hdrDict = `{${hdrs.map(([k, v]) => `${pyStr(k)}: ${pyStr(v)}`).join(', ')}}`
+
+    lines.push(`    import requests`)
+    lines.push(`    _args = ${argsDict}`)
+    // Substitute {param} placeholders without disturbing literal JSON braces.
+    lines.push(`    _url = ${pyStr(spec.url || '')}`)
+    for (const n of paramNames) lines.push(`    _url = _url.replace("{${n}}", str(${n}))`)
+    if (method === 'get' || method === 'delete') {
+      lines.push(`    _resp = requests.${method}(_url, params=_args, headers=${hdrDict})`)
+    } else if (hasBody) {
+      lines.push(`    _body = ${pyStr(spec.body)}`)
+      for (const n of paramNames) lines.push(`    _body = _body.replace("{${n}}", str(${n}))`)
+      lines.push(`    _resp = requests.${method}(_url, data=_body, headers=${hdrDict})`)
+    } else {
+      lines.push(`    _resp = requests.${method}(_url, json=_args, headers=${hdrDict})`)
+    }
+    lines.push(`    return _resp.text`)
+  } else {
+    const body = (spec.code || '').replace(/\s+$/, '')
+    if (body.trim()) {
+      for (const ln of body.split('\n')) lines.push(ln ? `    ${ln}` : '')
+    } else {
+      lines.push(`    return "${py(spec.mockReturnValue || 'Tool result')}"`)
+    }
+  }
+  lines.push('')
+}
+
+function mcpExpr(m: AgentMCP): string {
+  if ((m.transport ?? 'http') === 'http') {
+    const authArg = m.apiKey ? `, auth=MCPAuthConfig(bearer_token="${py(m.apiKey)}")` : ''
+    return `MCPClient.from_url("${py(m.url || 'http://localhost:8080/sse')}", name="${py(m.name || 'mcp')}"${authArg})`
+  }
+  const rawArgs = (m.args || '').trim()
+  const argsArray = rawArgs ? `, args=[${rawArgs.split(/\s+/).map(a => `"${py(a)}"`).join(', ')}]` : ''
+  return `MCPClient.from_subprocess("${py(m.command || 'python3')}"${argsArray}, name="${py(m.name || 'mcp')}")`
+}
+
+function emitMemory(lines: string[], varName: string, c: { shortTerm?: { enabled: boolean; windowSize: number }; longTerm?: { enabled: boolean; path: string } }) {
+  const parts: string[] = []
+  if (c.longTerm?.enabled) {
+    lines.push(`${varName}_long = LongTermMemory(base_path="${py(c.longTerm.path || './moya_memory')}")`)
+    parts.push(`${varName}_long`)
+  }
+  if (c.shortTerm?.enabled) {
+    lines.push(`${varName}_short = ShortTermMemory(window_size=${c.shortTerm.windowSize || 10})`)
+    parts.push(`${varName}_short`)
+  }
+  if (parts.length > 1) {
+    lines.push(`${varName}_memory = CompositeMemory([${parts.join(', ')}])`)
+  } else {
+    lines.push(`${varName}_memory = ${parts[0]}`)
+  }
 }

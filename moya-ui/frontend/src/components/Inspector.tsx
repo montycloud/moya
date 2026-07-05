@@ -1,18 +1,21 @@
-import { X, Info } from 'lucide-react'
+import { useState } from 'react'
+import { X, Info, ChevronDown, Plus, Wrench, Brain, Plug, Trash2 } from 'lucide-react'
 import type { Node } from '@xyflow/react'
 import { PROVIDER_MODELS, NODE_COLORS, NODE_DESCRIPTIONS } from '../constants'
+import { ToolExecEditor, emptyToolExec } from './ToolExecEditor'
 import type {
   AgentNodeData, ToolNodeData, SkillNodeData,
   InputNodeData, ParallelNodeData, LoopNodeData, BranchNodeData,
-  MCPNodeData, A2ANodeData,
-  ToolParameter, UserSkill,
+  ToolParameter, UserSkill, RegistryTool, InlineTool, AgentMCP,
 } from '../types'
 
 interface Props {
   node: Node | null
   onDataChange: (id: string, data: Record<string, unknown>) => void
   onClose: () => void
+  onDelete: () => void
   userSkills: UserSkill[]
+  registryTools: RegistryTool[]
 }
 
 // ── Shared primitives ────────────────────────────────────────────────────────
@@ -73,10 +76,86 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   )
 }
 
+// Collapsible capability section (Tools / Memory / MCP) with a count badge.
+function Section({ icon, title, count, children }: {
+  icon: React.ReactNode; title: string; count?: number; children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="border-t border-slate-100 pt-3">
+      <button onClick={() => setOpen(v => !v)} className="w-full flex items-center gap-2 group">
+        <span className="text-slate-400">{icon}</span>
+        <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide flex-1 text-left">{title}</span>
+        {count ? <span className="text-[10px] font-semibold text-white bg-slate-400 rounded-full px-1.5 min-w-[16px] text-center">{count}</span> : null}
+        <ChevronDown size={13} className={`text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
+      </button>
+      {open && <div className="mt-3 space-y-3">{children}</div>}
+    </div>
+  )
+}
+
+function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: React.ReactNode }) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer select-none">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={e => onChange(e.target.checked)}
+        className="w-3.5 h-3.5 rounded border-slate-300 text-violet-600 focus:ring-violet-300"
+      />
+      <span className="text-xs text-slate-700">{label}</span>
+    </label>
+  )
+}
+
 // ── Per-type forms ───────────────────────────────────────────────────────────
 
-function AgentForm({ data, onChange }: { data: AgentNodeData; onChange: (f: string, v: unknown) => void }) {
+function AgentForm({ data, onChange, registryTools }: {
+  data: AgentNodeData; onChange: (f: string, v: unknown) => void; registryTools: RegistryTool[]
+}) {
   const models = PROVIDER_MODELS[data.provider] ?? []
+
+  // ── Capability state helpers ──
+  const toolIds     = data.toolIds ?? []
+  const inlineTools = data.inlineTools ?? []
+  const mem         = data.memory ?? {}
+  const mcpServers  = data.mcpServers ?? []
+
+  const toolCount = toolIds.length + inlineTools.length
+  const memCount  = (mem.shortTerm?.enabled ? 1 : 0) + (mem.longTerm?.enabled ? 1 : 0)
+  const isA2A     = data.provider === 'a2a'
+
+  function toggleTool(id: string, on: boolean) {
+    onChange('toolIds', on ? [...toolIds, id] : toolIds.filter(t => t !== id))
+  }
+  function addInlineTool() {
+    onChange('inlineTools', [...inlineTools, { name: 'my_tool', description: '', ...emptyToolExec() } as InlineTool])
+  }
+  function updateInlineTool(i: number, patch: Partial<InlineTool>) {
+    onChange('inlineTools', inlineTools.map((t, j) => j === i ? { ...t, ...patch } : t))
+  }
+  function removeInlineTool(i: number) {
+    onChange('inlineTools', inlineTools.filter((_, j) => j !== i))
+  }
+  function setShortTerm(patch: Partial<{ enabled: boolean; windowSize: number }>) {
+    onChange('memory', { ...mem, shortTerm: { enabled: false, windowSize: 10, ...mem.shortTerm, ...patch } })
+  }
+  function setLongTerm(patch: Partial<{ enabled: boolean; path: string }>) {
+    onChange('memory', { ...mem, longTerm: { enabled: false, path: './moya_memory', ...mem.longTerm, ...patch } })
+  }
+  function addMcp() {
+    onChange('mcpServers', [...mcpServers, {
+      id: crypto.randomUUID(), name: 'my_mcp', transport: 'http',
+      url: 'http://localhost:8080/sse', command: 'python3', args: 'server.py', apiKey: '',
+    } as AgentMCP])
+  }
+  function updateMcp(i: number, patch: Partial<AgentMCP>) {
+    onChange('mcpServers', mcpServers.map((m, j) => j === i ? { ...m, ...patch } : m))
+  }
+  function removeMcp(i: number) {
+    onChange('mcpServers', mcpServers.filter((_, j) => j !== i))
+  }
+
   return (
     <div className="space-y-4">
       <Field label="Display Label">
@@ -94,35 +173,58 @@ function AgentForm({ data, onChange }: { data: AgentNodeData; onChange: (f: stri
             { value: 'ollama',  label: 'Ollama (Local)' },
             { value: 'bedrock', label: 'AWS Bedrock' },
             { value: 'azure',   label: 'Azure OpenAI' },
+            { value: 'a2a',     label: 'A2A / Remote' },
           ]}
         />
       </Field>
-      <Field label="Model" hint={data.provider === 'ollama' ? 'Type any model name pulled via ollama pull' : undefined}>
-        {data.provider === 'ollama' ? (
-          <>
-            <input
-              type="text"
-              value={data.model}
-              onChange={e => onChange('model', e.target.value)}
-              list="ollama-model-suggestions"
-              placeholder="llama3.1"
-              className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white text-slate-800 placeholder-slate-300 transition-shadow"
+
+      {isA2A ? (
+        <>
+          <div className="rounded-lg bg-rose-50 p-3 text-[11px] text-rose-700 border border-rose-100">
+            A remote agent reached over the A2A protocol. It runs elsewhere, so model, prompt, tools and memory are configured on the remote server — not here.
+          </div>
+          <Field label="Endpoint URL" hint="Base URL of the remote A2A server">
+            <Inp value={data.endpointUrl ?? ''} onChange={v => onChange('endpointUrl', v)} placeholder="http://localhost:8001" />
+          </Field>
+          <Field label="Timeout (seconds)">
+            <Inp
+              type="number"
+              value={String(data.timeoutSeconds ?? 60)}
+              onChange={v => onChange('timeoutSeconds', Math.max(5, parseInt(v) || 60))}
             />
-            <datalist id="ollama-model-suggestions">
-              {models.map(m => <option key={m} value={m} />)}
-            </datalist>
-          </>
-        ) : (
-          <Sel
-            value={data.model}
-            onChange={v => onChange('model', v)}
-            options={models.map(m => ({ value: m, label: m }))}
-          />
-        )}
-      </Field>
-      <Field label="System Prompt" hint="Instructions that shape this agent's behaviour">
-        <Txta value={data.systemPrompt} onChange={v => onChange('systemPrompt', v)} rows={5} placeholder="You are a helpful assistant." />
-      </Field>
+          </Field>
+        </>
+      ) : (
+        <>
+          <Field label="Model" hint={data.provider === 'ollama' ? 'Type any model name pulled via ollama pull' : undefined}>
+            {data.provider === 'ollama' ? (
+              <>
+                <input
+                  type="text"
+                  value={data.model}
+                  onChange={e => onChange('model', e.target.value)}
+                  list="ollama-model-suggestions"
+                  placeholder="llama3.1"
+                  className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white text-slate-800 placeholder-slate-300 transition-shadow"
+                />
+                <datalist id="ollama-model-suggestions">
+                  {models.map(m => <option key={m} value={m} />)}
+                </datalist>
+              </>
+            ) : (
+              <Sel
+                value={data.model}
+                onChange={v => onChange('model', v)}
+                options={models.map(m => ({ value: m, label: m }))}
+              />
+            )}
+          </Field>
+          <Field label="System Prompt" hint="Instructions that shape this agent's behaviour">
+            <Txta value={data.systemPrompt} onChange={v => onChange('systemPrompt', v)} rows={5} placeholder="You are a helpful assistant." />
+          </Field>
+        </>
+      )}
+
       <Field label="Description" hint="Helps the orchestrator route to this agent">
         <Inp value={data.description} onChange={v => onChange('description', v)} placeholder="What does this agent do?" />
       </Field>
@@ -133,6 +235,141 @@ function AgentForm({ data, onChange }: { data: AgentNodeData; onChange: (f: stri
           placeholder="specialist, coordinator"
         />
       </Field>
+
+      {isA2A ? null : (
+      <>
+      {/* ── Tools ── */}
+      <Section icon={<Wrench size={13} />} title="Tools" count={toolCount}>
+        {registryTools.length > 0 ? (
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-slate-400">From the Tool Registry</p>
+            {registryTools.map(t => (
+              <Checkbox
+                key={t.id}
+                checked={toolIds.includes(t.id)}
+                onChange={on => toggleTool(t.id, on)}
+                label={<span><span className="font-mono">{t.name}</span> <span className="text-slate-400">— {t.description}</span></span>}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2 leading-snug">
+            No registry tools yet. Open the <strong className="text-slate-600">Tool Registry</strong> (wrench in toolbar) to define reusable tools.
+          </div>
+        )}
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <Label>Inline Tools</Label>
+            <button onClick={addInlineTool} className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold px-1">+ Add</button>
+          </div>
+          <div className="space-y-2">
+            {inlineTools.map((t, i) => (
+              <div key={i} className="bg-slate-50 rounded-lg p-2.5 space-y-2 relative border border-slate-100">
+                <button onClick={() => removeInlineTool(i)} className="absolute top-2 right-2 text-slate-300 hover:text-rose-500 transition-colors z-10">
+                  <X size={11} />
+                </button>
+                <Inp value={t.name} onChange={v => updateInlineTool(i, { name: v })} placeholder="tool name" />
+                <Inp value={t.description} onChange={v => updateInlineTool(i, { description: v })} placeholder="what it does (the LLM reads this)" />
+                <ToolExecEditor name={t.name} value={t} onChange={patch => updateInlineTool(i, patch)} />
+              </div>
+            ))}
+            {inlineTools.length === 0 && (
+              <p className="text-[10px] text-slate-400 text-center py-1">No inline tools</p>
+            )}
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Memory ── */}
+      <Section icon={<Brain size={13} />} title="Memory" count={memCount}>
+        <div className="rounded-lg bg-violet-50 border border-violet-100 p-2.5 text-[10px] text-violet-800 leading-relaxed">
+          Memory is keyed by conversation <strong>thread</strong>. After every turn the agent
+          <strong> stores</strong> the user message and its reply, then on the next turn
+          <strong> reads back</strong> earlier context — so it remembers across a conversation.
+          Enable either or both (they combine automatically).
+        </div>
+        <div className="space-y-2">
+          <Checkbox
+            checked={!!mem.shortTerm?.enabled}
+            onChange={on => setShortTerm({ enabled: on })}
+            label={<span className="font-medium">Short-term</span>}
+          />
+          <p className="text-[10px] text-slate-400 pl-6 -mt-1 leading-snug">
+            Keeps only the last <em>N</em> messages in context (a sliding window). Fast, in-memory, forgotten when the process stops.
+          </p>
+          {mem.shortTerm?.enabled && (
+            <div className="pl-6">
+              <Label>Window size (messages kept)</Label>
+              <Inp
+                type="number"
+                value={String(mem.shortTerm?.windowSize ?? 10)}
+                onChange={v => setShortTerm({ windowSize: Math.max(1, parseInt(v) || 10) })}
+              />
+            </div>
+          )}
+          <Checkbox
+            checked={!!mem.longTerm?.enabled}
+            onChange={on => setLongTerm({ enabled: on })}
+            label={<span className="font-medium">Long-term</span>}
+          />
+          <p className="text-[10px] text-slate-400 pl-6 -mt-1 leading-snug">
+            Writes the full history to disk and <em>recalls</em> the most relevant past messages by keyword + recency. Survives restarts.
+          </p>
+          {mem.longTerm?.enabled && (
+            <div className="pl-6">
+              <Label>Storage folder</Label>
+              <Inp
+                value={mem.longTerm?.path ?? './moya_memory'}
+                onChange={v => setLongTerm({ path: v })}
+                placeholder="./moya_memory"
+              />
+            </div>
+          )}
+        </div>
+      </Section>
+
+      {/* ── MCP Servers ── */}
+      <Section icon={<Plug size={13} />} title="MCP Servers" count={mcpServers.length}>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] text-slate-400 leading-snug">Each server's tools are discovered and given to this agent.</p>
+          <button onClick={addMcp} className="text-[10px] text-amber-600 hover:text-amber-800 font-semibold px-1 flex-shrink-0"><Plus size={11} className="inline" /> Add</button>
+        </div>
+        <div className="space-y-2">
+          {mcpServers.map((m, i) => (
+            <div key={m.id} className="bg-slate-50 rounded-lg p-2 space-y-1.5 relative">
+              <button onClick={() => removeMcp(i)} className="absolute top-2 right-2 text-slate-300 hover:text-rose-500 transition-colors">
+                <X size={11} />
+              </button>
+              <Inp value={m.name} onChange={v => updateMcp(i, { name: v })} placeholder="server name" />
+              <Sel
+                value={m.transport}
+                onChange={v => updateMcp(i, { transport: v as 'http' | 'stdio' })}
+                options={[
+                  { value: 'http',  label: 'HTTP / SSE' },
+                  { value: 'stdio', label: 'stdio (subprocess)' },
+                ]}
+              />
+              {m.transport === 'http' ? (
+                <>
+                  <Inp value={m.url} onChange={v => updateMcp(i, { url: v })} placeholder="http://localhost:8080/sse" />
+                  <Inp value={m.apiKey} onChange={v => updateMcp(i, { apiKey: v })} placeholder="API key (optional)" />
+                </>
+              ) : (
+                <>
+                  <Inp value={m.command} onChange={v => updateMcp(i, { command: v })} placeholder="python3" />
+                  <Inp value={m.args} onChange={v => updateMcp(i, { args: v })} placeholder="server.py" />
+                </>
+              )}
+            </div>
+          ))}
+          {mcpServers.length === 0 && (
+            <p className="text-[10px] text-slate-400 text-center py-1">No MCP servers</p>
+          )}
+        </div>
+      </Section>
+      </>
+      )}
     </div>
   )
 }
@@ -148,16 +385,6 @@ function InputForm({ data, onChange }: { data: InputNodeData; onChange: (f: stri
 }
 
 function ToolForm({ data, onChange }: { data: ToolNodeData; onChange: (f: string, v: unknown) => void }) {
-  function addParam() {
-    onChange('parameters', [...(data.parameters ?? []), { name: 'param', type: 'str', description: '' }])
-  }
-  function removeParam(i: number) {
-    onChange('parameters', (data.parameters ?? []).filter((_, j) => j !== i))
-  }
-  function updateParam(i: number, field: keyof ToolParameter, val: string) {
-    onChange('parameters', (data.parameters ?? []).map((p, j) => j === i ? { ...p, [field]: val } : p))
-  }
-
   return (
     <div className="space-y-4">
       <Field label="Tool Name" hint="Python function name in generated code">
@@ -166,36 +393,20 @@ function ToolForm({ data, onChange }: { data: ToolNodeData; onChange: (f: string
       <Field label="Description" hint="LLM uses this docstring to decide when to call the tool">
         <Txta value={data.description} onChange={v => onChange('description', v)} rows={2} placeholder="Does something useful." />
       </Field>
-      <Field label="Simulated Return Value" hint="Returned during simulation mode">
-        <Inp value={data.mockReturnValue} onChange={v => onChange('mockReturnValue', v)} placeholder="Tool result" />
-      </Field>
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <Label>Parameters</Label>
-          <button onClick={addParam} className="text-[10px] text-violet-600 hover:text-violet-800 font-semibold px-1">+ Add</button>
-        </div>
-        <div className="space-y-2">
-          {(data.parameters ?? []).map((p, i) => (
-            <div key={i} className="bg-slate-50 rounded-lg p-2 space-y-1.5 relative">
-              <button onClick={() => removeParam(i)} className="absolute top-2 right-2 text-slate-300 hover:text-rose-500 transition-colors">
-                <X size={11} />
-              </button>
-              <Inp value={p.name} onChange={v => updateParam(i, 'name', v)} placeholder="name" />
-              <div className="flex gap-1.5">
-                <Sel
-                  value={p.type || 'str'}
-                  onChange={v => updateParam(i, 'type', v)}
-                  options={['str', 'int', 'float', 'bool', 'list', 'dict'].map(t => ({ value: t, label: t }))}
-                />
-                <Inp value={p.description} onChange={v => updateParam(i, 'description', v)} placeholder="description" />
-              </div>
-            </div>
-          ))}
-          {(data.parameters ?? []).length === 0 && (
-            <p className="text-[10px] text-slate-400 text-center py-2">No parameters yet</p>
-          )}
-        </div>
-      </div>
+      <ToolExecEditor
+        name={data.name}
+        value={{
+          parameters: data.parameters ?? [],
+          kind: data.kind ?? 'python',
+          code: data.code ?? '',
+          method: data.method ?? 'GET',
+          url: data.url ?? '',
+          headers: data.headers ?? '',
+          body: data.body ?? '',
+          mockReturnValue: data.mockReturnValue ?? '',
+        }}
+        onChange={patch => { for (const [k, v] of Object.entries(patch)) onChange(k, v) }}
+      />
     </div>
   )
 }
@@ -285,81 +496,6 @@ function LoopForm({ data, onChange }: { data: LoopNodeData; onChange: (f: string
   )
 }
 
-function MCPForm({ data, onChange }: { data: MCPNodeData; onChange: (f: string, v: unknown) => void }) {
-  return (
-    <div className="space-y-4">
-      <Field label="Display Label">
-        <Inp value={data.label} onChange={v => onChange('label', v)} placeholder="MCP Server" />
-      </Field>
-      <Field label="Server Name" hint="Used to namespace tool names: name__tool_name">
-        <Inp value={data.name} onChange={v => onChange('name', v)} placeholder="my_mcp" />
-      </Field>
-      <Field label="Transport" hint="How Moya connects to the MCP server">
-        <Sel
-          value={data.transport ?? 'http'}
-          onChange={v => onChange('transport', v)}
-          options={[
-            { value: 'http',  label: 'HTTP / SSE' },
-            { value: 'stdio', label: 'stdio (subprocess)' },
-          ]}
-        />
-      </Field>
-      {(data.transport ?? 'http') === 'http' ? (
-        <>
-          <Field label="SSE URL" hint="Full URL of the /sse endpoint">
-            <Inp value={data.url} onChange={v => onChange('url', v)} placeholder="http://localhost:8080/sse" />
-          </Field>
-          <Field label="API Key" hint="Optional — sent as Bearer token">
-            <Inp value={data.apiKey} onChange={v => onChange('apiKey', v)} placeholder="sk-..." />
-          </Field>
-        </>
-      ) : (
-        <>
-          <Field label="Command" hint="Executable to run (e.g. python3)">
-            <Inp value={data.command} onChange={v => onChange('command', v)} placeholder="python3" />
-          </Field>
-          <Field label="Arguments" hint="Space-separated args passed to the command">
-            <Inp value={data.args} onChange={v => onChange('args', v)} placeholder="my_mcp_server.py" />
-          </Field>
-        </>
-      )}
-      <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-700 border border-amber-100 space-y-1">
-        <p className="font-semibold text-[11px] uppercase tracking-wide text-amber-600 mb-1">Usage</p>
-        <p>Connect this node to an <strong>Agent</strong> with an edge. Moya will discover all tools advertised by the server and register them so the agent can call them.</p>
-      </div>
-    </div>
-  )
-}
-
-function A2AForm({ data, onChange }: { data: A2ANodeData; onChange: (f: string, v: unknown) => void }) {
-  return (
-    <div className="space-y-4">
-      <Field label="Display Label">
-        <Inp value={data.label} onChange={v => onChange('label', v)} placeholder="Remote Agent" />
-      </Field>
-      <Field label="Agent Name" hint="Used as the Python variable name">
-        <Inp value={data.name} onChange={v => onChange('name', v)} placeholder="remote_agent" />
-      </Field>
-      <Field label="Endpoint URL" hint="Base URL of the remote A2A server">
-        <Inp value={data.endpointUrl} onChange={v => onChange('endpointUrl', v)} placeholder="http://localhost:8001" />
-      </Field>
-      <Field label="Description" hint="What does this remote agent do?">
-        <Inp value={data.description} onChange={v => onChange('description', v)} placeholder="A remote specialist agent" />
-      </Field>
-      <Field label="Timeout (seconds)" hint="HTTP timeout for each request">
-        <Inp
-          value={String(data.timeoutSeconds ?? 60)}
-          onChange={v => onChange('timeoutSeconds', Math.max(5, parseInt(v) || 60))}
-          type="number"
-        />
-      </Field>
-      <div className="rounded-lg bg-rose-50 p-3 text-xs text-rose-700 border border-rose-100 space-y-1">
-        <p className="font-semibold text-[11px] uppercase tracking-wide text-rose-600 mb-1">A2A Protocol</p>
-        <p>The remote server must expose a <code className="font-mono">/.well-known/agent-card.json</code> endpoint. Moya uses the A2A SDK to send messages and stream responses back.</p>
-      </div>
-    </div>
-  )
-}
 
 function BranchForm({ data, onChange }: { data: BranchNodeData; onChange: (f: string, v: unknown) => void }) {
   return (
@@ -378,7 +514,7 @@ function BranchForm({ data, onChange }: { data: BranchNodeData; onChange: (f: st
 
 // ── Inspector overlay ────────────────────────────────────────────────────────
 
-export function Inspector({ node, onDataChange, onClose, userSkills }: Props) {
+export function Inspector({ node, onDataChange, onClose, onDelete, userSkills, registryTools }: Props) {
   const open = node !== null
   const c = NODE_COLORS[node?.type ?? 'agent']
   const description = NODE_DESCRIPTIONS[node?.type ?? ''] ?? ''
@@ -391,15 +527,13 @@ export function Inspector({ node, onDataChange, onClose, userSkills }: Props) {
   function renderForm() {
     if (!node) return null
     switch (node.type) {
-      case 'agent':    return <AgentForm    data={node.data as unknown as AgentNodeData}    onChange={onChange} />
+      case 'agent':    return <AgentForm    data={node.data as unknown as AgentNodeData}    onChange={onChange} registryTools={registryTools} />
       case 'input':    return <InputForm    data={node.data as unknown as InputNodeData}    onChange={onChange} />
       case 'tool':     return <ToolForm     data={node.data as unknown as ToolNodeData}     onChange={onChange} />
       case 'skill':    return <SkillForm    data={node.data as unknown as SkillNodeData}    onChange={onChange} userSkills={userSkills} />
       case 'parallel': return <ParallelForm data={node.data as unknown as ParallelNodeData} onChange={onChange} />
       case 'loop':     return <LoopForm     data={node.data as unknown as LoopNodeData}     onChange={onChange} />
       case 'branch':   return <BranchForm   data={node.data as unknown as BranchNodeData}   onChange={onChange} />
-      case 'mcp':      return <MCPForm      data={node.data as unknown as MCPNodeData}      onChange={onChange} />
-      case 'a2a':      return <A2AForm      data={node.data as unknown as A2ANodeData}      onChange={onChange} />
       case 'output':   return <p className="text-xs text-slate-400 italic">Displays the final pipeline result. No configuration needed.</p>
       default:         return null
     }
@@ -418,9 +552,14 @@ export function Inspector({ node, onDataChange, onClose, userSkills }: Props) {
       {node && (
         <div className={`${c.header} border-b border-slate-100 px-4 py-3 flex items-center justify-between flex-shrink-0`}>
           <span className={`${c.headerText} font-semibold text-sm capitalize`}>{node.type} Properties</span>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors rounded-md p-0.5 hover:bg-black/5">
-            <X size={15} />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button onClick={onDelete} title="Delete node (Del / Backspace)" className="text-slate-400 hover:text-rose-600 transition-colors rounded-md p-0.5 hover:bg-black/5">
+              <Trash2 size={14} />
+            </button>
+            <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-700 transition-colors rounded-md p-0.5 hover:bg-black/5">
+              <X size={15} />
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { Play, Square, Trash2, ChevronDown, BookOpen, Cpu, Radio, Code2, Terminal, Upload, X, Save, Download, FolderOpen, FileJson } from 'lucide-react'
+import { Play, Square, Trash2, ChevronDown, BookOpen, Wrench, Cpu, Radio, Code2, Terminal, Upload, X, Save, Download, FolderOpen, FileJson } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { TEMPLATES } from '../constants'
 import type { Node, Edge } from '@xyflow/react'
@@ -14,6 +14,7 @@ interface Props {
   onClear: () => void
   onLoadTemplate: (t: { nodes: Node[]; edges: Edge[] }) => void
   onOpenSkillsLibrary: () => void
+  onOpenToolRegistry: () => void
   onPublishAgent: (agent: PublishedAgent) => void
   isExecuting: boolean
   runMode: RunMode
@@ -222,7 +223,7 @@ function PublishModal({
 // ── Toolbar ───────────────────────────────────────────────────────────────────
 
 export function Toolbar({
-  onRun, onStop, onClear, onLoadTemplate, onOpenSkillsLibrary, onPublishAgent,
+  onRun, onStop, onClear, onLoadTemplate, onOpenSkillsLibrary, onOpenToolRegistry, onPublishAgent,
   isExecuting, runMode, onRunModeChange,
   activePanel, onTogglePanel,
   nodes, edges,
@@ -314,6 +315,16 @@ export function Toolbar({
         >
           <BookOpen size={13} />
           Skills
+        </button>
+
+        {/* Tool Registry */}
+        <button
+          onClick={onOpenToolRegistry}
+          title="Open Tool Registry"
+          className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-sky-700 px-2.5 py-1.5 rounded-lg hover:bg-sky-50 transition-colors"
+        >
+          <Wrench size={13} />
+          Tools
         </button>
 
         {/* Divider */}

@@ -17,6 +17,7 @@ from moya.flows.steps import FunctionStep
 from moya.tools.tool import Tool
 from moya.tools.tool_registry import ToolRegistry
 from moya.skills.skill import Skill
+from moya.memory import ShortTermMemory, LongTermMemory, CompositeMemory
 
 
 def to_snake(s: str) -> str:
@@ -47,10 +48,109 @@ def _topological_sort(nodes: list[dict], edges: list[dict]) -> list[dict]:
     return result
 
 
+def _parse_headers(raw: str) -> dict:
+    headers = {}
+    for line in (raw or '').splitlines():
+        line = line.strip()
+        if not line or ':' not in line:
+            continue
+        k, v = line.split(':', 1)
+        headers[k.strip()] = v.strip()
+    return headers
+
+
+def _build_tool_callable(spec: dict) -> Callable:
+    """
+    Turn a tool spec (from the registry, an agent's inline tools, or a Tool
+    node) into a real callable.
+
+    kind == 'python' → exec the user's function body with the declared signature.
+    kind == 'api'    → make a real HTTP request, substituting parameters.
+    Falls back to returning the simulated value if execution isn't possible.
+    """
+    kind = spec.get('kind', 'python')
+    name = spec.get('name') or 'tool'
+    mock = spec.get('mockReturnValue', 'Tool result')
+    params = spec.get('parameters', []) or []
+    param_names = [p.get('name') for p in params if p.get('name')]
+
+    if kind == 'api':
+        method = (spec.get('method') or 'GET').lower()
+        url_tmpl = spec.get('url') or ''
+        body_tmpl = (spec.get('body') or '').strip()
+        base_headers = _parse_headers(spec.get('headers', ''))
+
+        def api_fn(**kwargs: Any) -> str:
+            import requests
+            try:
+                # Substitute {param} placeholders without disturbing literal JSON braces.
+                url = url_tmpl
+                for k, v in kwargs.items():
+                    url = url.replace('{' + k + '}', str(v))
+                headers = dict(base_headers)
+                if method in ('get', 'delete'):
+                    resp = requests.request(method, url, params=kwargs, headers=headers, timeout=30)
+                elif body_tmpl:
+                    body = body_tmpl
+                    for k, v in kwargs.items():
+                        body = body.replace('{' + k + '}', str(v))
+                    if not any(h.lower() == 'content-type' for h in headers):
+                        headers['Content-Type'] = 'application/json'
+                    resp = requests.request(method, url, data=body, headers=headers, timeout=30)
+                else:
+                    resp = requests.request(method, url, json=kwargs, headers=headers, timeout=30)
+                return resp.text
+            except Exception as exc:  # noqa: BLE001
+                return f"[tool '{name}' error] {exc}"
+        return api_fn
+
+    # kind == 'python' — build a def with the real signature and exec the body.
+    body = (spec.get('code') or '').strip()
+    if not body:
+        def mock_fn(**_kwargs: Any) -> str:
+            return mock
+        return mock_fn
+
+    sig = ', '.join(f"{p.get('name')}: {p.get('type', 'str')}" for p in params if p.get('name'))
+    indented = '\n'.join('    ' + ln for ln in body.splitlines())
+    src = f"def _tool({sig}):\n{indented}\n"
+    ns: dict = {}
+    try:
+        exec(compile(src, f'<tool:{name}>', 'exec'), {}, ns)  # noqa: S102 — local dev tool execution
+        return ns['_tool']
+    except Exception as exc:  # noqa: BLE001
+        def err_fn(**_kwargs: Any) -> str:
+            return f"[tool '{name}' failed to compile] {exc}"
+        return err_fn
+
+
+def _make_mock_fn(val: str) -> Callable:
+    def fn(**_kwargs: Any) -> str:
+        return val
+    return fn
+
+
+def _build_memory(mem_cfg: dict) -> Any:
+    """Compose ShortTermMemory / LongTermMemory from an agent's memory config."""
+    if not mem_cfg:
+        return None
+    stores: list = []
+    long_cfg = mem_cfg.get('longTerm') or {}
+    if long_cfg.get('enabled'):
+        stores.append(LongTermMemory(base_path=long_cfg.get('path') or './moya_memory'))
+    short_cfg = mem_cfg.get('shortTerm') or {}
+    if short_cfg.get('enabled'):
+        stores.append(ShortTermMemory(window_size=int(short_cfg.get('windowSize') or 10)))
+    if not stores:
+        return None
+    return stores[0] if len(stores) == 1 else CompositeMemory(stores)
+
+
 def build_and_run(
     flow: dict,
     api_config: dict,
     trace_callback: Callable[[str, str, str, str], None],
+    registry_tools: list[dict] | None = None,
 ) -> str:
     """
     Build MOYA objects from the flow graph and execute the pipeline.
@@ -60,6 +160,7 @@ def build_and_run(
     """
     nodes: list[dict] = flow.get('nodes', [])
     edges: list[dict] = flow.get('edges', [])
+    tool_lib = {t['id']: t for t in (registry_tools or []) if t.get('id')}
 
     node_map = {n['id']: n for n in nodes}
 
@@ -71,18 +172,19 @@ def build_and_run(
     if api_config.get('awsRegion'):
         os.environ['AWS_DEFAULT_REGION'] = api_config['awsRegion']
 
-    # Separate capability edges (tool/skill → agent) from flow edges
+    # Separate capability edges (tool/skill/mcp → agent) from flow edges
     flow_edges = []
     cap_edges  = []
     for e in edges:
         src = node_map.get(e['source'])
-        if src and src.get('type') in ('tool', 'skill'):
+        if src and src.get('type') in ('tool', 'skill', 'mcp'):
             cap_edges.append(e)
         else:
             flow_edges.append(e)
 
-    agent_tools: dict[str, list[str]]  = {}
-    agent_skills: dict[str, list[str]] = {}
+    agent_tools: dict[str, list[str]]     = {}
+    agent_skills: dict[str, list[str]]    = {}
+    agent_mcp_edges: dict[str, list[str]] = {}
     for e in cap_edges:
         src = node_map.get(e['source'])
         if not src:
@@ -91,32 +193,15 @@ def build_and_run(
             agent_tools.setdefault(e['target'], []).append(e['source'])
         elif src['type'] == 'skill':
             agent_skills.setdefault(e['target'], []).append(e['source'])
+        elif src['type'] == 'mcp':
+            agent_mcp_edges.setdefault(e['target'], []).append(e['source'])
 
-    flow_nodes = [n for n in nodes if n.get('type') not in ('tool', 'skill')]
+    flow_nodes = [n for n in nodes if n.get('type') not in ('tool', 'skill', 'mcp')]
     sorted_nodes = _topological_sort(flow_nodes, flow_edges)
 
     succ: dict[str, list[str]] = {}
     for e in flow_edges:
         succ.setdefault(e['source'], []).append(e['target'])
-
-    # Build shared ToolRegistry and mock tool functions
-    tool_registry = ToolRegistry()
-    for n in nodes:
-        if n.get('type') != 'tool':
-            continue
-        d = n.get('data', {})
-        mock_val = d.get('mockReturnValue', 'Tool result')
-
-        def make_fn(val: str) -> Callable:
-            def fn(**_kwargs: Any) -> str:
-                return val
-            return fn
-
-        tool_registry.register_tool(Tool(
-            name=d.get('name', 'tool'),
-            description=d.get('description', ''),
-            function=make_fn(mock_val),
-        ))
 
     # Build Skill objects
     skill_map: dict[str, Skill] = {}
@@ -129,6 +214,76 @@ def build_and_run(
             description=d.get('description', ''),
             prompt_snippet=d.get('promptSnippet', ''),
         )
+
+    def _connect_mcp(mcp_cfg: dict, registry: ToolRegistry, agent_label: str) -> None:
+        """Connect one MCP server and register its tools. Degrades gracefully."""
+        try:
+            from moya.mcp import MCPClient, MCPAuthConfig
+            transport = mcp_cfg.get('transport', 'http')
+            if transport == 'http':
+                auth = MCPAuthConfig(bearer_token=mcp_cfg['apiKey']) if mcp_cfg.get('apiKey') else None
+                client = MCPClient.from_url(
+                    mcp_cfg.get('url', 'http://localhost:8080/sse'),
+                    name=mcp_cfg.get('name', 'mcp'), auth=auth,
+                )
+            else:
+                raw_args = (mcp_cfg.get('args') or '').split()
+                client = MCPClient.from_subprocess(
+                    mcp_cfg.get('command', 'python3'), args=raw_args,
+                    name=mcp_cfg.get('name', 'mcp'),
+                )
+            for _tool in client.get_tools():
+                registry.register_tool(_tool)
+        except Exception as exc:  # noqa: BLE001 — surface as a trace warning, keep running
+            trace_callback('completed', 'mcp-warn', f'⚠ MCP {mcp_cfg.get("name", "server")}',
+                           f'Could not connect to MCP server: {exc}')
+
+    def _build_registry(node: dict, d: dict, agent_label: str) -> ToolRegistry | None:
+        """Assemble a per-agent ToolRegistry from edge tools, registry tools,
+        inline tools, and MCP servers (edge-based + inspector-configured)."""
+        registry = ToolRegistry()
+        used = False
+
+        # Edge-connected tool nodes
+        for tid in agent_tools.get(node['id'], []):
+            td = node_map.get(tid, {}).get('data', {})
+            registry.register_tool(Tool(
+                name=td.get('name', 'tool'),
+                description=td.get('description', ''),
+                function=_build_tool_callable(td),
+            ))
+            used = True
+
+        # Registry-library tools referenced by id
+        for rid in d.get('toolIds', []) or []:
+            t = tool_lib.get(rid)
+            if not t:
+                continue
+            registry.register_tool(Tool(
+                name=t.get('name', 'tool'),
+                description=t.get('description', ''),
+                function=_build_tool_callable(t),
+            ))
+            used = True
+
+        # Inline tools defined on the agent
+        for t in d.get('inlineTools', []) or []:
+            registry.register_tool(Tool(
+                name=t.get('name', 'tool'),
+                description=t.get('description', ''),
+                function=_build_tool_callable(t),
+            ))
+            used = True
+
+        # MCP servers — edge-connected nodes + inspector-configured list
+        for mid in agent_mcp_edges.get(node['id'], []):
+            _connect_mcp(node_map.get(mid, {}).get('data', {}), registry, agent_label)
+            used = True
+        for mcp_cfg in d.get('mcpServers', []) or []:
+            _connect_mcp(mcp_cfg, registry, agent_label)
+            used = True
+
+        return registry if used else None
 
     # Build Agent objects — deduplicate names with a counter
     agent_instances: dict[str, Any] = {}
@@ -149,8 +304,21 @@ def build_and_run(
             seen_names[base_name] = 0
             name = base_name
 
-        has_tools = bool(agent_tools.get(n['id']))
-        skills    = [skill_map[sid] for sid in agent_skills.get(n['id'], []) if sid in skill_map]
+        # A2A / remote agent — a thin proxy to a remote server.
+        if provider == 'a2a':
+            from moya.a2a.client import A2AAgent, A2AAgentConfig
+            agent_instances[n['id']] = A2AAgent(A2AAgentConfig(
+                agent_name=name,
+                agent_type='a2a',
+                description=d.get('description') or f'{name} (remote)',
+                endpoint_url=d.get('endpointUrl') or 'http://localhost:8001',
+                timeout_seconds=int(d.get('timeoutSeconds') or 60),
+            ))
+            continue
+
+        registry = _build_registry(n, d, name)
+        skills   = [skill_map[sid] for sid in agent_skills.get(n['id'], []) if sid in skill_map]
+        memory   = _build_memory(d.get('memory') or {})
 
         agent_instances[n['id']] = create_agent(
             provider,
@@ -159,8 +327,9 @@ def build_and_run(
             model=model,
             system_prompt=d.get('systemPrompt', ''),
             tags=d.get('tags', []),
-            tool_registry=tool_registry if has_tools else None,
+            tool_registry=registry,
             skills=skills if skills else None,
+            memory=memory,
         )
 
     # Build pipeline steps (with trace wrappers)

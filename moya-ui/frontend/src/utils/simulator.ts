@@ -36,6 +36,25 @@ function topSort(nodes: Node[], succ: Map<string, string[]>, pred: Map<string, s
   return result
 }
 
+function capabilityLines(data: AgentNodeData): string {
+  const lines: string[] = []
+  const toolCount = (data.toolIds?.length ?? 0) + (data.inlineTools?.length ?? 0)
+  if (toolCount > 0) lines.push(`🔧 ${toolCount} tool${toolCount > 1 ? 's' : ''} available`)
+
+  const mem = data.memory
+  if (mem?.shortTerm?.enabled || mem?.longTerm?.enabled) {
+    const parts: string[] = []
+    if (mem.shortTerm?.enabled) parts.push(`short-term (last ${mem.shortTerm.windowSize ?? 10})`)
+    if (mem.longTerm?.enabled)  parts.push(`long-term (${mem.longTerm.path || './moya_memory'})`)
+    lines.push(`🧠 Memory ${parts.join(' + ')}: recalled earlier context from this thread, storing this exchange for later turns`)
+  }
+
+  const mcpCount = data.mcpServers?.length ?? 0
+  if (mcpCount > 0) lines.push(`🔌 ${mcpCount} MCP server${mcpCount > 1 ? 's' : ''} connected`)
+
+  return lines.length ? lines.join('\n') + '\n\n' : ''
+}
+
 function simulateAgentOutput(data: AgentNodeData, input: string): string {
   const name  = data.label || data.name || 'Agent'
   const model = `${data.provider}/${data.model}`
@@ -45,6 +64,7 @@ function simulateAgentOutput(data: AgentNodeData, input: string): string {
   return (
     `[${name}] — ${model}\n\n` +
     (snip ? `Role: "${snip}"\n\n` : '') +
+    capabilityLines(data) +
     `Processing: "${preview}"\n\n` +
     `This is a simulated response demonstrating how MOYA routes messages through the ` +
     `pipeline. In live mode with a real API key, ${name} would produce actual LLM output here. ` +

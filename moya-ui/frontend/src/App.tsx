@@ -23,8 +23,6 @@ import { OutputNode }   from './components/nodes/OutputNode'
 import { ParallelNode } from './components/nodes/ParallelNode'
 import { LoopNode }     from './components/nodes/LoopNode'
 import { BranchNode }   from './components/nodes/BranchNode'
-import { MCPNode }      from './components/nodes/MCPNode'
-import { A2ANode }      from './components/nodes/A2ANode'
 
 import { TopNav }        from './components/TopNav'
 import { NodePalette }   from './components/NodePalette'
@@ -32,6 +30,7 @@ import { Inspector }     from './components/Inspector'
 import { Toolbar }       from './components/Toolbar'
 import { BottomPanel }   from './components/BottomPanel'
 import { SkillsLibrary } from './components/SkillsLibrary'
+import { ToolRegistryLibrary } from './components/ToolRegistryLibrary'
 import { Marketplace }   from './components/Marketplace'
 import { SettingsModal } from './components/SettingsModal'
 
@@ -39,7 +38,7 @@ import { generateCode }  from './utils/codeGenerator'
 import { runSimulation } from './utils/simulator'
 import { runReal }       from './utils/runner'
 import { TEMPLATE_SIMPLE, NODE_DEFAULTS } from './constants'
-import type { TraceEvent, UserSkill, PublishedAgent, ApiConfig, SavedFlow } from './types'
+import type { TraceEvent, UserSkill, PublishedAgent, ApiConfig, SavedFlow, RegistryTool } from './types'
 
 // Must be defined OUTSIDE the component — stable reference required by React Flow v12
 const nodeTypes = {
@@ -51,8 +50,6 @@ const nodeTypes = {
   parallel: ParallelNode,
   loop:     LoopNode,
   branch:   BranchNode,
-  mcp:      MCPNode,
-  a2a:      A2ANode,
 } as const
 
 const defaultEdgeOptions = {
@@ -71,6 +68,11 @@ const DEFAULT_API_CONFIG: ApiConfig = {
 
 function loadSkills(): UserSkill[] {
   try { return JSON.parse(localStorage.getItem('moya_skills_library') ?? '[]') }
+  catch { return [] }
+}
+
+function loadRegistryTools(): RegistryTool[] {
+  try { return JSON.parse(localStorage.getItem('moya_tool_registry') ?? '[]') }
   catch { return [] }
 }
 
@@ -127,18 +129,23 @@ export function App() {
   // ── Other UI state ───────────────────────────────────────────────────────────
   const [runMode,           setRunMode]           = useState<'simulation' | 'real'>(loadRunMode)
   const [skillsLibraryOpen, setSkillsLibraryOpen] = useState(false)
+  const [toolLibraryOpen,   setToolLibraryOpen]   = useState(false)
   const [settingsOpen,      setSettingsOpen]      = useState(false)
   const [userSkills,        setUserSkills]        = useState<UserSkill[]>(loadSkills)
+  const [registryTools,     setRegistryTools]     = useState<RegistryTool[]>(loadRegistryTools)
   const [publishedAgents,   setPublishedAgents]   = useState<PublishedAgent[]>(loadPublishedAgents)
   const [apiConfig,         setApiConfig]         = useState<ApiConfig>(loadApiConfig)
   const [savedFlows,        setSavedFlows]        = useState<SavedFlow[]>(loadSavedFlows)
 
   const abortRef = useRef<AbortController | null>(null)
 
-  const { screenToFlowPosition, updateNodeData } = useReactFlow()
+  const { screenToFlowPosition, updateNodeData, deleteElements } = useReactFlow()
+
+  // Pending node deletion awaiting confirmation. `resolve` unblocks onBeforeDelete.
+  const [pendingDelete, setPendingDelete] = useState<{ nodes: Node[]; resolve: (ok: boolean) => void } | null>(null)
 
   const selectedNode  = useMemo(() => nodes.find(n => n.id === selectedNodeId) ?? null, [nodes, selectedNodeId])
-  const generatedCode = useMemo(() => generateCode(nodes, edges), [nodes, edges])
+  const generatedCode = useMemo(() => generateCode(nodes, edges, registryTools), [nodes, edges, registryTools])
 
   // ── Edge animation — highlight data flow during / after simulation ────────────
   const activeEdgeSourceIds = useMemo(() => {
@@ -316,6 +323,22 @@ export function App() {
 
   const onPaneClick = useCallback(() => setSelectedNodeId(null), [])
 
+  // ── Delete with confirmation ──────────────────────────────────────────────────
+  // Fires for Delete/Backspace key and for the Inspector trash button (both route
+  // through React Flow's deleteElements). Edge-only deletions skip the prompt.
+  const onBeforeDelete = useCallback(({ nodes: delNodes }: { nodes: Node[]; edges: Edge[] }) => {
+    if (!delNodes || delNodes.length === 0) return Promise.resolve(true)
+    return new Promise<boolean>(resolve => setPendingDelete({ nodes: delNodes, resolve }))
+  }, [])
+
+  const onNodesDelete = useCallback((deleted: Node[]) => {
+    setSelectedNodeId(prev => (prev && deleted.some(n => n.id === prev) ? null : prev))
+  }, [])
+
+  const handleDeleteSelectedNode = useCallback(() => {
+    if (selectedNodeId) deleteElements({ nodes: [{ id: selectedNodeId }] })
+  }, [selectedNodeId, deleteElements])
+
   const handleNodeDataChange = useCallback((id: string, data: Record<string, unknown>) => {
     updateNodeData(id, data)
   }, [updateNodeData])
@@ -368,7 +391,7 @@ export function App() {
       if (runMode === 'real') {
         output = await runReal(nodes, edges, apiConfig, event => {
           setTraceEvents(prev => [...prev, event])
-        }, controller.signal)
+        }, controller.signal, registryTools)
       } else {
         output = await runSimulation(nodes, edges, event => {
           setTraceEvents(prev => [...prev, event])
@@ -386,7 +409,7 @@ export function App() {
       setIsExecuting(false)
       abortRef.current = null
     }
-  }, [nodes, edges, runMode, apiConfig, updateNodeData])
+  }, [nodes, edges, runMode, apiConfig, updateNodeData, registryTools])
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort()
@@ -433,6 +456,19 @@ export function App() {
     const next = userSkills.filter(s => s.id !== id)
     setUserSkills(next)
     localStorage.setItem('moya_skills_library', JSON.stringify(next))
+  }
+
+  // ── Tool Registry ─────────────────────────────────────────────────────────────
+  function handleSaveTool(tool: RegistryTool) {
+    const next = [...registryTools, tool]
+    setRegistryTools(next)
+    localStorage.setItem('moya_tool_registry', JSON.stringify(next))
+  }
+
+  function handleDeleteTool(id: string) {
+    const next = registryTools.filter(t => t.id !== id)
+    setRegistryTools(next)
+    localStorage.setItem('moya_tool_registry', JSON.stringify(next))
   }
 
   // ── Publish Agent ─────────────────────────────────────────────────────────────
@@ -500,6 +536,7 @@ export function App() {
               onClear={handleClear}
               onLoadTemplate={handleLoadTemplate}
               onOpenSkillsLibrary={() => setSkillsLibraryOpen(true)}
+              onOpenToolRegistry={() => setToolLibraryOpen(true)}
               onPublishAgent={handlePublishAgent}
               isExecuting={isExecuting}
               runMode={runMode}
@@ -530,6 +567,15 @@ export function App() {
                 onDelete={handleDeleteSkill}
               />
 
+              {/* Tool Registry left overlay */}
+              <ToolRegistryLibrary
+                open={toolLibraryOpen}
+                onClose={() => setToolLibraryOpen(false)}
+                tools={registryTools}
+                onSave={handleSaveTool}
+                onDelete={handleDeleteTool}
+              />
+
               {/* Node palette */}
               <NodePalette />
 
@@ -556,10 +602,12 @@ export function App() {
                   onConnect={onConnect}
                   onNodeClick={onNodeClick}
                   onPaneClick={onPaneClick}
+                  onBeforeDelete={onBeforeDelete}
+                  onNodesDelete={onNodesDelete}
                   defaultEdgeOptions={defaultEdgeOptions}
                   fitView
                   fitViewOptions={{ padding: 0.3 }}
-                  deleteKeyCode="Delete"
+                  deleteKeyCode={['Delete', 'Backspace']}
                   className="bg-white"
                   proOptions={{ hideAttribution: true }}
                 >
@@ -578,7 +626,9 @@ export function App() {
                 node={selectedNode}
                 onDataChange={handleNodeDataChange}
                 onClose={() => setSelectedNodeId(null)}
+                onDelete={handleDeleteSelectedNode}
                 userSkills={userSkills}
+                registryTools={registryTools}
               />
 
               {/* Bottom panel — absolute overlay, slides up from bottom */}
@@ -617,6 +667,42 @@ export function App() {
           onSave={handleSaveApiConfig}
           onClose={() => setSettingsOpen(false)}
         />
+      )}
+
+      {/* Delete confirmation */}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-sm">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Delete {pendingDelete.nodes.length > 1 ? `${pendingDelete.nodes.length} nodes` : 'node'}?
+              </h2>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {pendingDelete.nodes.length === 1
+                  ? <>This removes <strong>{(pendingDelete.nodes[0].data as { label?: string })?.label || pendingDelete.nodes[0].type}</strong> and its connections.</>
+                  : <>This removes the selected nodes and their connections.</>}
+                {' '}This can't be undone.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-200 flex gap-2">
+              <button
+                onClick={() => { pendingDelete.resolve(true); setPendingDelete(null) }}
+                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors"
+                autoFocus
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => { pendingDelete.resolve(false); setPendingDelete(null) }}
+                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

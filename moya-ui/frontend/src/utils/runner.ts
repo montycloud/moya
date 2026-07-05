@@ -3,7 +3,7 @@
  * SSE trace events back. Falls back gracefully on network errors.
  */
 import type { Node, Edge } from '@xyflow/react'
-import type { TraceEvent, ApiConfig } from '../types'
+import type { TraceEvent, ApiConfig, RegistryTool } from '../types'
 
 export async function runReal(
   nodes: Node[],
@@ -11,6 +11,7 @@ export async function runReal(
   apiConfig: ApiConfig,
   onTrace: (event: TraceEvent) => void,
   signal?: AbortSignal,
+  registryTools: RegistryTool[] = [],
 ): Promise<string> {
   const backendUrl = (apiConfig.backendUrl || 'http://localhost:8000').replace(/\/$/, '')
   const nodeMap    = new Map(nodes.map(n => [n.id, n]))
@@ -35,6 +36,7 @@ export async function runReal(
         awsRegion: apiConfig.awsRegion ?? 'us-east-1',
         backendUrl,
       },
+      registry_tools: registryTools,
     }),
   })
 

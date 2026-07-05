@@ -52,6 +52,7 @@ class RunRequest(BaseModel):
     nodes: list[dict[str, Any]]
     edges: list[dict[str, Any]]
     api_config: ApiConfig = ApiConfig()
+    registry_tools: list[dict[str, Any]] = Field(default_factory=list)
 
 
 @app.get('/health')
@@ -83,6 +84,7 @@ async def run_flow(request: RunRequest):
                 flow={'nodes': request.nodes, 'edges': request.edges},
                 api_config=request.api_config.model_dump(),
                 trace_callback=trace_callback,
+                registry_tools=request.registry_tools,
             )
             asyncio.run_coroutine_threadsafe(
                 event_queue.put({'type': 'result', 'output': result}), loop
