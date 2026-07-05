@@ -348,11 +348,16 @@ class MCPClient:
         asyncio.run_coroutine_threadsafe(
             self._keep_alive_stdio(command, args, resolved_env), self._loop
         )
-        if not self._connected.wait(timeout=timeout):
-            err = self._connection_error
+        connected = self._connected.wait(timeout=timeout)
+        # The event is also set when the connection *fails* — so check the
+        # recorded error regardless of whether the wait timed out.
+        if self._connection_error is not None:
+            raise MCPConnectionError(
+                f"Failed to connect to MCP server. Error: {self._connection_error}"
+            )
+        if not connected:
             raise MCPConnectionError(
                 f"Failed to connect to MCP server within {timeout}s."
-                + (f" Error: {err}" if err else "")
             )
 
     async def _keep_alive_stdio(
@@ -383,11 +388,16 @@ class MCPClient:
         asyncio.run_coroutine_threadsafe(
             self._keep_alive_http(url, headers), self._loop
         )
-        if not self._connected.wait(timeout=timeout):
-            err = self._connection_error
+        connected = self._connected.wait(timeout=timeout)
+        # The event is also set when the connection *fails* — so check the
+        # recorded error regardless of whether the wait timed out.
+        if self._connection_error is not None:
+            raise MCPConnectionError(
+                f"Failed to connect to MCP server at {url}. Error: {self._connection_error}"
+            )
+        if not connected:
             raise MCPConnectionError(
                 f"Failed to connect to MCP server at {url} within {timeout}s."
-                + (f" Error: {err}" if err else "")
             )
 
     async def _keep_alive_http(self, url: str, headers: Optional[dict]) -> None:
