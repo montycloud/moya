@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guide — Learn MOYA</title>
+  <meta name="description" content="A plain-language introduction to agentic frameworks: what agents, tools, memory and multi-agent systems are — and how to build your first one with MOYA." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+
+  <!-- Nav -->
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">
+        <span class="mark"><img src="assets/moya-mark.svg" alt="" width="17" height="17" /></span>
+        <span class="name">MOYA</span>
+      </a>
+      <button class="nav-toggle" aria-label="Menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <nav class="nav-links">
+        <a href="https://github.com/montycloud/moya/tree/main/docs">Docs</a>
+        <a href="learn.html">Guide</a>
+        <a href="https://github.com/montycloud/moya/tree/main/moya-ui">Studio</a>
+        <a href="https://arxiv.org/abs/2501.08243">Paper</a>
+        <a class="nav-cta" href="https://github.com/montycloud/moya">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Learn hero -->
+  <section class="learn-hero">
+    <div class="container">
+      <p class="eyebrow">Guide</p>
+      <h1>Learn MOYA in one sitting</h1>
+      <p class="lede">A plain-language walk through the framework: what an agent is, what tools and
+        memory add, and how several agents work together — then build one step by step. No prior AI
+        experience needed.</p>
+    </div>
+  </section>
+
+  <div class="container learn-layout">
+    <!-- TOC -->
+    <aside class="toc">
+      <p class="toc-title">On this page</p>
+      <nav>
+        <a href="#what">What is an agentic framework?</a>
+        <a href="#agent">What is an agent?</a>
+        <a href="#tools">Tools</a>
+        <a href="#memory">Memory</a>
+        <a href="#teams">Multiple agents</a>
+        <a href="#build">Build your first agent</a>
+        <a href="#next">Where to next</a>
+      </nav>
+    </aside>
+
+    <!-- Content -->
+    <article class="prose">
+      <section id="what">
+        <h2>What is an agentic framework?</h2>
+        <p>A large language model (LLM) like GPT-4o is great at producing text, but on its own it
+          can't <em>do</em> anything — it can't look up your data, call an API, or remember what
+          you said five minutes ago. An <strong>agent</strong> wraps an LLM so it can.</p>
+        <p>An <strong>agentic framework</strong> is a toolkit for building these agents: it handles
+          talking to the model, letting the agent call your code (“tools”), remembering the
+          conversation (“memory”), and coordinating several agents that each do one job well. MOYA
+          is one such framework, written in Python and kept deliberately small so you can read it.</p>
+        <div class="callout">
+          <strong>Mental model:</strong> an agent ≈ an LLM + instructions + (optional) tools +
+          (optional) memory. The framework is the glue that wires those together and runs them.
+        </div>
+      </section>
+
+      <section id="agent">
+        <h2>What is an agent?</h2>
+        <p>In MOYA, you make an agent with one function call. You pick a provider, give it a name
+          and a short description of its job, and optionally a <em>system prompt</em> that shapes
+          how it behaves.</p>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="file">agent.py</span><button class="copy-btn">Copy</button></div>
+          <pre><code data-lang="python">from moya import create_agent
+
+agent = create_agent(
+    "openai",                       # provider: openai, ollama, bedrock, azure
+    name="assistant",
+    description="A friendly helper",
+    system_prompt="You are concise and kind.",
+)
+
+print(agent.handle_message("Hi! Who are you?"))</code></pre>
+        </div>
+        <p>That's a complete, working agent. <code>handle_message</code> sends your text to the
+          model and returns its reply. Change <code>"openai"</code> to <code>"ollama"</code> and the
+          same code runs against a model on your own laptop.</p>
+      </section>
+
+      <section id="tools">
+        <h2>Tools — let the agent use your code</h2>
+        <p>A <strong>tool</strong> is simply a Python function the agent is allowed to call. You
+          write a normal function with a docstring; MOYA reads its name, arguments and description
+          and offers it to the model. When the model decides it needs that function, MOYA runs it
+          and feeds the result back.</p>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="file">tools.py</span><button class="copy-btn">Copy</button></div>
+          <pre><code data-lang="python">from moya import create_agent, ToolRegistry, Tool
+
+def get_weather(city: str) -> str:
+    "Return the current weather for a city."
+    return "Sunny, 24C"
+
+tools = ToolRegistry()
+tools.register_tool(Tool(name="get_weather", function=get_weather))
+
+agent = create_agent("openai", name="assistant",
+                     description="Knows the weather",
+                     tool_registry=tools)
+
+print(agent.handle_message("What's the weather in Kyoto?"))</code></pre>
+        </div>
+        <p>Ask about the weather and the agent will call <code>get_weather</code> for you. In real
+          life this function might hit a weather API or query a database — the agent doesn't care,
+          it just calls the function.</p>
+      </section>
+
+      <section id="memory">
+        <h2>Memory — so the agent remembers</h2>
+        <p>By default each message is independent. <strong>Memory</strong> lets an agent recall
+          earlier turns. MOYA gives you two kinds you can use alone or together:</p>
+        <ul>
+          <li><strong>Short-term</strong> — keeps the last <em>N</em> messages as working context.
+            Fast and in-memory.</li>
+          <li><strong>Long-term</strong> — writes the whole history to disk and can recall the most
+            relevant past messages later. Survives restarts.</li>
+        </ul>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="file">memory.py</span><button class="copy-btn">Copy</button></div>
+          <pre><code data-lang="python">from moya import create_agent
+from moya.memory import (
+    ShortTermMemory, LongTermMemory, CompositeMemory)
+
+memory = CompositeMemory([
+    LongTermMemory(base_path="./memory"),   # persistent
+    ShortTermMemory(window_size=10),        # recent context
+])
+
+agent = create_agent("openai", name="assistant",
+                     description="Remembers you", memory=memory)</code></pre>
+        </div>
+        <div class="callout">
+          <strong>Good to know:</strong> memory is organised by <em>thread</em> — one conversation.
+          Pass the same <code>thread_id</code> across turns and the agent treats them as one chat.
+        </div>
+      </section>
+
+      <section id="teams">
+        <h2>Multiple agents working together</h2>
+        <p>Complex jobs are easier when each agent does one thing well. MOYA gives you a few ways to
+          combine them:</p>
+        <ul>
+          <li><strong>Orchestrators</strong> route an incoming message to the right agent.</li>
+          <li><strong>Delegation</strong> lets a coordinator hand tasks to specialists —
+            sequentially or in parallel — and combine their answers.</li>
+          <li><strong>Pipelines</strong> chain agents into steps, with support for parallel
+            branches, loops and conditional routing.</li>
+        </ul>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="file">pipeline.py</span><button class="copy-btn">Copy</button></div>
+          <pre><code data-lang="python">from moya import Pipeline, AgentStep
+
+# researcher gathers facts, writer makes them readable
+pipeline = Pipeline([
+    AgentStep(researcher),
+    AgentStep(writer),
+])
+
+answer = pipeline.run(thread_id="t1",
+                     message="Explain black holes simply")</code></pre>
+        </div>
+      </section>
+
+      <section id="build">
+        <h2>Build your first agent, step by step</h2>
+        <p>Let's assemble the pieces. Each step is a small change on the previous one.</p>
+
+        <h3 style="font-family:var(--serif);font-size:1.15rem;margin-top:1.6rem">Step 1 — a plain agent</h3>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="file">step1.py</span><button class="copy-btn">Copy</button></div>
+          <pre><code data-lang="python">from moya import create_agent
+
+agent = create_agent("openai", name="tutor",
+                     description="Explains ideas simply")
+print(agent.handle_message("What is a qubit?"))</code></pre>
+        </div>
+
+        <h3 style="font-family:var(--serif);font-size:1.15rem;margin-top:1.6rem">Step 2 — give it a tool</h3>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="file">step2.py</span><button class="copy-btn">Copy</button></div>
+          <pre><code data-lang="python">from moya import create_agent, ToolRegistry, Tool
+
+def search_notes(topic: str) -> str:
+    "Look up short notes on a topic."
+    notes = {"qubit": "A qubit can be 0, 1, or both at once."}
+    return notes.get(topic.lower(), "No notes found.")
+
+tools = ToolRegistry()
+tools.register_tool(Tool(name="search_notes", function=search_notes))
+
+agent = create_agent("openai", name="tutor",
+                     description="Explains ideas simply",
+                     tool_registry=tools)
+print(agent.handle_message("Use your notes: what is a qubit?"))</code></pre>
+        </div>
+
+        <h3 style="font-family:var(--serif);font-size:1.15rem;margin-top:1.6rem">Step 3 — add memory</h3>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="file">step3.py</span><button class="copy-btn">Copy</button></div>
+          <pre><code data-lang="python">from moya.memory import ShortTermMemory
+
+agent = create_agent("openai", name="tutor",
+                     description="Explains ideas simply",
+                     tool_registry=tools,
+                     memory=ShortTermMemory(window_size=8))
+
+agent.handle_message("My name is Ada.",           thread_id="t1")
+print(agent.handle_message("What's my name?",     thread_id="t1"))</code></pre>
+        </div>
+        <p class="pill-note">Because both calls share <code>thread_id="t1"</code>, the second one
+          remembers the first.</p>
+
+        <h3 style="font-family:var(--serif);font-size:1.15rem;margin-top:1.6rem">Step 4 — a second agent in a pipeline</h3>
+        <div class="code">
+          <div class="code-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="file">step4.py</span><button class="copy-btn">Copy</button></div>
+          <pre><code data-lang="python">from moya import Pipeline, AgentStep
+
+writer = create_agent("openai", name="writer",
+                     description="Rewrites text to be clear and short")
+
+pipeline = Pipeline([AgentStep(agent), AgentStep(writer)])
+print(pipeline.run(thread_id="t1", message="Explain a qubit"))</code></pre>
+        </div>
+        <div class="callout">
+          You just built a two-agent system with a tool and memory. The full, runnable versions
+          live in <a href="https://github.com/montycloud/moya/tree/main/examples/research_assistant">examples/research_assistant</a>
+          and <a href="https://github.com/montycloud/moya/tree/main/examples/support_desk">examples/support_desk</a>.
+        </div>
+      </section>
+
+      <section id="next">
+        <h2>Where to next</h2>
+        <div class="next-cards">
+          <a class="next-card" href="https://github.com/montycloud/moya/tree/main/examples">
+            <h4>Examples →</h4>
+            <p>Runnable, self-contained demos of tools, memory and multi-agent flows.</p>
+          </a>
+          <a class="next-card" href="https://github.com/montycloud/moya/tree/main/docs">
+            <h4>Documentation →</h4>
+            <p>Deeper reference on agents, orchestrators, memory and the tool system.</p>
+          </a>
+          <a class="next-card" href="https://github.com/montycloud/moya/tree/main/moya-ui">
+            <h4>Agent Studio →</h4>
+            <p>Build the same flows visually and read the Python it generates.</p>
+          </a>
+        </div>
+      </section>
+    </article>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <a class="brand" href="index.html" style="margin-bottom:.9rem">
+          <span class="mark"><img src="assets/moya-mark.svg" alt="" width="17" height="17" /></span>
+          <span class="name">MOYA</span>
+        </a>
+        <div class="paper">
+          Built on the research paper <em>“Engineering LLM Powered Multi-agent Framework for
+          Autonomous CloudOps.”</em> <a href="https://arxiv.org/abs/2501.08243">arXiv:2501.08243</a>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="col">
+          <h4>Start</h4>
+          <a href="learn.html">Guide</a>
+          <a href="https://github.com/montycloud/moya/tree/main/docs/quickstart.md">Quickstart</a>
+          <a href="https://github.com/montycloud/moya/tree/main/examples">Examples</a>
+        </div>
+        <div class="col">
+          <h4>Reference</h4>
+          <a href="https://github.com/montycloud/moya/tree/main/docs">Documentation</a>
+          <a href="https://github.com/montycloud/moya/tree/main/moya-ui">Agent Studio</a>
+          <a href="https://github.com/montycloud/moya">GitHub</a>
+        </div>
+      </div>
+    </div>
+    <div class="container" style="margin-top:2rem; color:var(--faint); font-size:.82rem">
+      © 2026 MontyCloud · MIT licensed · Made for people learning to build with agents.
+    </div>
+  </footer>
+
+  <script src="assets/main.js"></script>
+</body>
+</html>
