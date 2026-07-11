@@ -1,13 +1,15 @@
 """
 CrewAIAgent for Moya.
 
-An Agent that uses a Crew to generate responses using CrewAI.
+Wraps a CrewAI Crew as a single MOYA agent. Because CrewAI does not expose
+a streaming API the handle_message_stream() implementation yields the complete
+response as a single chunk, which is valid under MOYA's streaming contract.
 """
+
 import os
 from dataclasses import dataclass
+from typing import Iterator, Optional
 
-from crewai import Agent as CrewAgent, LLM as CrewLLM, Task as CrewTask, Crew
-from typing import Any, Dict, Optional
 from moya.agents.agent import Agent, AgentConfig
 
 os.environ["OTEL_SDK_DISABLED"] = "true"
@@ -15,48 +17,31 @@ os.environ["OTEL_SDK_DISABLED"] = "true"
 
 @dataclass
 class CrewAIAgentConfig(AgentConfig):
-    api_key: str = os.getenv("OPENAI_API_KEY"),
+    api_key: Optional[str] = None
     model_name: str = "gpt-4o"
+
+    def __post_init__(self):
+        if self.api_key is None:
+            self.api_key = os.getenv("OPENAI_API_KEY")
+        super().__post_init__()
 
 
 class CrewAIAgent(Agent):
     """
-    A simple CrewAI-based agent.
+    CrewAI-backed agent. Delegates every message to a single-task Crew.
     """
 
-    def __init__(
-            self,
-            agent_name: str,
-            description: str,
-            config: Optional[Dict[str, Any]] = None,
-            tool_registry: Optional[Any] = None,
-            agent_config: Optional[CrewAIAgentConfig] = None
-    ):
-        """
-        :param agent_name: Unique name or identifier for the agent.
-        :param description: A brief explanation of the agent's capabilities.
-        :param config: Optional agent configuration (unused by default).
-        :param tool_registry: Optional ToolRegistry to enable tool calling.
-        :param system_prompt: Default system prompt for context.
-        :param agent_config: Optional configuration for the CrewAIAgent.
-        """
-        super().__init__(
-            agent_name=agent_name,
-            agent_type="CrewAIAgent",
-            description=description,
-            config=config,
-            tool_registry=tool_registry
-        )
-        self.agent_config = agent_config or CrewAIAgentConfig()
-        self.system_prompt = self.agent_config.system_prompt
-        self.client = None
+    def __init__(self, config: CrewAIAgentConfig):
+        super().__init__(config=config)
+        self.agent_config = config
+        self._crew_agent = None
 
     def setup(self) -> None:
-        """
-        Initialize the CrewAI agent with the provided configuration.
-        """
+        """Initialise the CrewAI agent and verify the LLM connection."""
         try:
-            self.client = CrewAgent(
+            from crewai import Agent as CrewAgent, LLM as CrewLLM
+
+            self._crew_agent = CrewAgent(
                 role="assistant",
                 goal=self.system_prompt,
                 backstory=self.description,
@@ -64,45 +49,26 @@ class CrewAIAgent(Agent):
                 llm=CrewLLM(
                     model=self.agent_config.model_name,
                     api_key=self.agent_config.api_key,
-                ))
-        except Exception as e:
-            raise EnvironmentError(
-                f"Failed to initialize Crew Agent: {str(e)}"
+                ),
             )
+        except Exception as e:
+            raise EnvironmentError(f"Failed to initialise CrewAI agent: {e}") from e
 
     def handle_message(self, message: str, **kwargs) -> str:
-        """
-        Calls the CrewAI agent to handle the user's message.
-        """
+        thread_id = kwargs.get("thread_id", "default")
+        if self._crew_agent is None:
+            self.setup()
         try:
-            task = CrewTask(
-                description=message,
-                expected_output="",
-                agent=self.client,
-            )
-            crew = Crew(agents=[self.client], tasks=[task])
-            response = crew.kickoff().raw
-            return response
+            from crewai import Task, Crew
 
+            task = Task(description=message, expected_output="", agent=self._crew_agent)
+            crew = Crew(agents=[self._crew_agent], tasks=[task])
+            result = crew.kickoff().raw
+            self._remember(thread_id, message, result)
+            return result
         except Exception as e:
-            return f"[BedrockAgent error: {str(e)}]"
+            return f"[CrewAIAgent error: {e}]"
 
-    def handle_message_stream(self, message: str, **kwargs):
-        """
-        Calls the CrewAI agent to handle the user's message.
-        CrewAI does not support streaming responses, so this method is the same as handle_message.
-        """
-        try:
-            task = CrewTask(
-                description=message,
-                expected_output="",
-                agent=self.client,
-            )
-            crew = Crew(agents=[self.client], tasks=[task])
-            response = crew.kickoff().raw
-            yield response
-
-        except Exception as e:
-            error_message = f"[CrewAIAgent error: {str(e)}]"
-            print(error_message)
-            yield error_message
+    def handle_message_stream(self, message: str, **kwargs) -> Iterator[str]:
+        """CrewAI has no streaming API — yields the full response as one chunk."""
+        yield self.handle_message(message, **kwargs)

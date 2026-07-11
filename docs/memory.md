@@ -1,158 +1,187 @@
-# Memory in Moya
+# Memory
 
-The Memory module in Moya is designed to manage and store information about conversations that agents can use during their interactions. It provides a structured way to retain context, track conversations, and store message history for future use.
+MOYA's memory system stores conversation history as **threads** of **messages**. The storage backend is pluggable — swap `InMemoryRepository` for `FileSystemRepository` (or your own implementation) without changing any agent code.
 
-## Overview
+---
 
-Memory in Moya serves the following purposes:
+## Core Model
 
-- **Context Retention**: Store and retrieve conversation data to maintain context across interactions.
-- **Conversation History**: Keep track of user-agent conversations through thread and message storage.
-- **Persistence Options**: Store conversation data either in memory or in a file system.
+A **Thread** is an ordered list of **Messages** identified by a `thread_id`. Agents use the thread to provide conversation context to the LLM on each turn.
 
-## Key Components
+```
+Thread (thread_id="session-42")
+├── Message(sender="user",      content="My name is Alice.")
+├── Message(sender="assistant", content="Nice to meet you, Alice!")
+├── Message(sender="user",      content="What is my name?")
+└── Message(sender="assistant", content="Your name is Alice.")
+```
 
-### 1. Repository
+---
 
-**File:** `moya/memory/repository.py`
+## Repository Pattern
 
-The `Repository` class is an abstract base class that defines the interface for all memory repository implementations in Moya. It specifies the methods that must be implemented to store and retrieve conversation threads and messages.
+`Repository` is an abstract base class. All storage operations go through this interface:
 
-#### Key Methods:
-- `create_thread(thread: Thread) -> None`: Stores a new conversation thread.
-- `get_thread(thread_id: str) -> Optional[Thread]`: Retrieves a thread by its ID.
-- `append_message(thread_id: str, message: Message) -> None`: Adds a message to an existing thread.
-- `list_threads() -> List[str]`: Lists all thread IDs in the repository.
-- `delete_thread(thread_id: str) -> None`: Removes a thread and its messages from the repository.
+```python
+from moya.memory.repository import Repository
 
-#### Example Usage:
+class Repository:
+    def create_thread(self, thread: Thread) -> None: ...
+    def get_thread(self, thread_id: str) -> Optional[Thread]: ...
+    def append_message(self, thread_id: str, message: Message) -> None: ...
+    def list_threads(self) -> List[str]: ...
+    def delete_thread(self, thread_id: str) -> None: ...
+```
+
+### InMemoryRepository
+
+Default. Stores everything in a Python dict. State is lost when the process exits.
+
+```python
+from moya import InMemoryRepository
+
+repo = InMemoryRepository()
+```
+
+### FileSystemRepository
+
+Stores each thread as a JSON file in a directory. State persists across restarts.
+
+```python
+from moya import FileSystemRepository
+
+repo = FileSystemRepository(base_path="./conversation_history")
+```
+
+Files are named `{base_path}/{thread_id}.json`.
+
+### Custom backend
+
+Implement `Repository` to use any store (Redis, DynamoDB, PostgreSQL, …):
+
 ```python
 from moya.memory.repository import Repository
 from moya.conversation.thread import Thread
 from moya.conversation.message import Message
 
-# Using a concrete implementation of Repository
-repository = ConcreteRepository()
+class RedisRepository(Repository):
+    def __init__(self, client):
+        self._r = client
 
-# Create a new thread
-thread = Thread(thread_id="conversation_1")
-repository.create_thread(thread)
+    def create_thread(self, thread: Thread) -> None:
+        self._r.set(f"thread:{thread.thread_id}", json.dumps({"messages": []}))
 
-# Add a message to the thread
-message = Message(thread_id="conversation_1", sender="user", content="Hello, Moya!")
-repository.append_message("conversation_1", message)
+    def get_thread(self, thread_id: str) -> Optional[Thread]:
+        raw = self._r.get(f"thread:{thread_id}")
+        if raw is None:
+            return None
+        # deserialise and return Thread object
+        ...
 
-# Retrieve the thread
-retrieved_thread = repository.get_thread("conversation_1")
+    # implement remaining methods
 ```
 
-### 2. InMemoryRepository
+---
 
-**File:** `moya/memory/in_memory_repository.py`
+## Using Memory with Agents
 
-The `InMemoryRepository` class is a concrete implementation of the `Repository` interface that stores conversation threads and messages in memory using Python dictionaries.
+Pass any `Repository` instance to `create_agent()`:
 
-#### Key Features:
-- Provides in-memory storage of threads and messages
-- Fast access but data is lost when the program terminates
-- Useful for testing and simple applications
-
-#### Example Usage:
 ```python
-from moya.memory.in_memory_repository import InMemoryRepository
-from moya.conversation.thread import Thread
-from moya.conversation.message import Message
+from moya import create_agent, InMemoryRepository
 
-# Create an in-memory repository
-repository = InMemoryRepository()
+memory = InMemoryRepository()
+agent = create_agent("openai", name="bot", description="Chat bot", memory=memory)
 
-# Create and store a thread
-thread = Thread(thread_id="conversation_1")
-repository.create_thread(thread)
-
-# Add messages to the thread
-message1 = Message(thread_id="conversation_1", sender="user", content="What is Moya?")
-repository.append_message("conversation_1", message1)
-
-message2 = Message(thread_id="conversation_1", sender="agent", content="Moya is an AI framework.")
-repository.append_message("conversation_1", message2)
-
-# Get the thread with its messages
-thread = repository.get_thread("conversation_1")
-for message in thread.messages:
-    print(f"{message.sender}: {message.content}")
+# Pass thread_id on every call to use the same conversation thread
+agent.handle_message("My name is Alice.", thread_id="session-1")
+response = agent.handle_message("What is my name?", thread_id="session-1")
+print(response)  # → "Your name is Alice."
 ```
 
-### 3. FileSystemRepository
+The agent automatically:
+1. Loads the thread from the repository before each LLM call.
+2. Appends user message + assistant response after each successful call (`_remember()`).
 
-**File:** `moya/memory/file_system_repo.py`
+Different `thread_id` values create isolated conversations:
 
-The `FileSystemRepository` class is a concrete implementation of the `Repository` interface that stores conversation threads and messages as JSON files in the file system.
-
-#### Key Features:
-- Provides persistent storage using JSON files
-- Each thread is stored as a separate file with thread metadata and messages
-- Data persists across program restarts
-- Suitable for applications that need to maintain conversation history
-
-#### Example Usage:
 ```python
-from moya.memory.file_system_repo import FileSystemRepository
+agent.handle_message("I am Alice.", thread_id="alice")
+agent.handle_message("I am Bob.",   thread_id="bob")
+
+# These are separate conversations
+agent.handle_message("Who am I?", thread_id="alice")  # → "You are Alice."
+agent.handle_message("Who am I?", thread_id="bob")    # → "You are Bob."
+```
+
+---
+
+## EphemeralMemory
+
+`EphemeralMemory` is a convenience wrapper that exposes memory operations as **tools** the LLM can call. This is useful when you want the agent to decide what to remember rather than always persisting every message.
+
+```python
+from moya import create_agent, ToolRegistry
+from moya.tools.ephemeral_memory import EphemeralMemory
+
+registry = ToolRegistry()
+em = EphemeralMemory()
+em.configure_memory_tools(registry)
+# Registers three tools into registry:
+#   store_message(thread_id, sender, content)
+#   get_last_n_messages(thread_id, n=5)
+#   get_thread_summary(thread_id)
+
+agent = create_agent("openai", name="bot", description="...", tool_registry=registry)
+```
+
+Each `EphemeralMemory` instance has its own isolated `InMemoryRepository`. Two instances never share state, even if they use the same `thread_id`.
+
+---
+
+## Conversation API on Agent
+
+Agents expose two convenience methods for reading conversation history:
+
+```python
+# Last N messages as a list
+messages = agent.get_last_n_messages("session-1", n=10)
+
+# Full thread summary as a string
+summary = agent.get_conversation_summary("session-1")
+```
+
+---
+
+## Thread and Message Models
+
+### Thread
+
+```python
 from moya.conversation.thread import Thread
-from moya.conversation.message import Message
 
-# Create a file system repository
-repository = FileSystemRepository(base_path="./moya_memory")
-
-# Create and store a thread
-thread = Thread(thread_id="conversation_1", metadata={"user_id": "user123"})
-repository.create_thread(thread)
-
-# Add a message to the thread
-message = Message(
-    thread_id="conversation_1",
-    sender="user",
-    content="Hello, Moya!",
-    metadata={"timestamp": "2025-04-01T12:00:00"}
+thread = Thread(
+    thread_id="session-1",
+    participants=["user", "assistant"],  # optional
+    metadata={"user_timezone": "UTC"},   # optional
 )
-repository.append_message("conversation_1", message)
 
-# List all threads
-thread_ids = repository.list_threads()
-print(f"Available threads: {thread_ids}")
+thread.add_message(message)
+messages = thread.get_messages()
+recent = thread.get_last_n_messages(n=5)
 ```
 
-## Working with Threads and Messages
+### Message
 
-The memory repositories in Moya work with two primary data types:
-
-1. **Thread**: Represents a conversation thread that contains messages
-2. **Message**: Represents a single message within a thread
-
-These classes are defined in:
-- `moya/conversation/thread.py`
-- `moya/conversation/message.py`
-
-### Thread Usage:
 ```python
-from moya.conversation.thread import Thread
 from moya.conversation.message import Message
 
-# Create a new thread
-thread = Thread(thread_id="conversation_1", metadata={"user": "john_doe"})
+msg = Message(
+    thread_id="session-1",
+    sender="user",           # "user", "assistant", or agent name
+    content="Hello!",
+    metadata={"role": "user"},   # optional
+)
 
-# Add messages to the thread
-thread.add_message(Message(thread_id="conversation_1", sender="user", content="Hello!"))
-thread.add_message(Message(thread_id="conversation_1", sender="agent", content="Hi there!"))
-
-# Access thread information
-print(f"Thread ID: {thread.thread_id}")
-print(f"Message count: {len(thread.messages)}")
+d = msg.to_dict()  # JSON-serialisable dict
 ```
-
-## Implementation Notes
-
-- When implementing a custom repository, ensure it properly handles thread creation, message appending, and thread retrieval.
-- The `FileSystemRepository` stores each thread as a separate JSON file, with thread metadata at the top and messages as JSON lines.
-- For high-volume applications, consider extending the repository pattern to use a database backend.
-- Thread and message IDs should be unique to ensure proper identification and retrieval.

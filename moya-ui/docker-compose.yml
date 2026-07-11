@@ -1,0 +1,46 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MOYA Agent Studio — Docker Compose
+#
+#  Usage:
+#    docker compose up --build          # build and start
+#    docker compose up -d               # run in background
+#    docker compose down                # stop and remove containers
+#
+#  Configuration — copy .env.example to .env and fill in your keys:
+#    OPENAI_API_KEY=sk-...
+#    OLLAMA_URL=http://host.docker.internal:11434   # Ollama running on host
+#
+#  Note: Ollama with GPU access must run on the host, not inside Docker.
+#  Set OLLAMA_URL to reach it from inside the container (host.docker.internal
+#  on Mac/Windows; 172.17.0.1 on Linux).
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  backend:
+    build:
+      context: ..                    # repo root (needs the moya/ package)
+      dockerfile: moya-ui/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: moya-ui/Dockerfile.frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

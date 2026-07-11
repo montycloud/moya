@@ -16,7 +16,6 @@ MANIFEST
 
 # git
 .git/
-.github/
 
 # venv
 venv/
@@ -26,3 +25,9 @@ venv/
 
 */.env
 tmp/
+
+# Node
+node_modules/
+*.log
+# Example long-term memory output
+moya_memory/

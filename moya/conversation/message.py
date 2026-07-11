@@ -4,7 +4,7 @@ Message model for Moya.
 Represents a single message within a conversation thread.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from typing import Optional, Dict, Any, Union
 
@@ -37,7 +37,7 @@ class Message:
         self.thread_id = thread_id
         self.sender = sender
         self.content = content
-        self.timestamp = timestamp or datetime.utcnow()
+        self.timestamp = timestamp or datetime.now(timezone.utc)
         self.metadata = metadata or {}
 
     def __repr__(self) -> str:

@@ -30,14 +30,22 @@ class LLMClassifier(Classifier):
         if not available_agents:
             return None
 
+        # Build agent descriptions including skill hints
+        agent_lines = []
+        for agent in available_agents:
+            line = f"'{agent.name}: {agent.description}'"
+            if getattr(agent, "skills", None):
+                line += f" [skills: {', '.join(agent.skills)}]"
+            agent_lines.append(line)
+
         # Construct prompt for the LLM
-        prompt = f"""Given the following user message and list of available specialized agents, 
-        select the most appropriate agent to handle the request. Return only the agent id.
-        
-        Available agents: {', '.join([f"'{agent.name}: {agent.description}'" for agent in available_agents])}
-        
-        User message: {message}
-        """
+        prompt = f"""Given the following user message and list of available specialized agents, \
+select the most appropriate agent to handle the request. Return only the agent name.
+
+Available agents: {', '.join(agent_lines)}
+
+User message: {message}
+"""
 
         # Get classification from LLM
         response = self.llm_agent.handle_message(prompt, thread_id=thread_id)

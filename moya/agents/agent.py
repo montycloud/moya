@@ -18,10 +18,12 @@ Agents can:
 
 import abc
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from moya.tools.tool import Tool
 from moya.tools.tool_registry import ToolRegistry
 from moya.memory.repository import Repository
+from moya.conversation.thread import Thread
+from moya.conversation.message import Message
 
 @dataclass
 class AgentConfig:
@@ -37,6 +39,11 @@ class AgentConfig:
     memory: Optional[Repository] = None
     is_tool_caller: bool = False
     is_streaming: bool = False
+    # List of Skill objects to attach to this agent at creation time.
+    # Each skill may contribute a prompt snippet and/or a set of tools.
+    skills: List[Any] = field(default_factory=list)
+    # Optional SkillRegistry used to resolve skill dependencies at attach time.
+    skill_registry: Optional[Any] = None
 
     def __post_init__(self):
         if not self.agent_name:
@@ -101,6 +108,16 @@ class Agent(abc.ABC):
         self.memory = config.memory
         self.is_tool_caller = config.is_tool_caller
         self.is_streaming = config.is_streaming
+        self.skills: List[Any] = []
+
+        # Attach skills with optional dependency resolution.
+        if config.skills:
+            from moya.skills.attachment import attach_skills
+            attach_skills(
+                self,
+                list(config.skills),
+                registry=getattr(config, "skill_registry", None),
+            )
         
 
     @abc.abstractmethod
@@ -127,34 +144,30 @@ class Agent(abc.ABC):
         """
         raise NotImplementedError("Subclasses must implement handle_message_stream().")
 
-    def call_tool(self, tool_name: str, method_name: str, *args, **kwargs) -> Any:
+    def call_tool(self, tool_name: str, **kwargs) -> Any:
         """
-        Call a method on a registered tool by name.
+        Call a registered tool by name, passing keyword arguments to its function.
 
-        :param tool_name: The unique name or identifier of the tool.
-        :param method_name: The name of the method to call on the tool.
-        :param args: Positional arguments to pass to the tool method.
-        :param kwargs: Keyword arguments to pass to the tool method.
-        :return: The result of the tool method call.
+        :param tool_name: The name of the tool to call.
+        :param kwargs:    Arguments forwarded to the tool's underlying function.
+        :return:          The return value of the tool function.
         """
         if not self.tool_registry:
             raise RuntimeError(
-                f"Agent '{self.agent_name}' has no tool registry attached."
+                f"Agent '{self.agent_name}' has no tool registry. "
+                "Pass a ToolRegistry via AgentConfig.tool_registry."
             )
-
         tool = self.tool_registry.get_tool(tool_name)
         if not tool:
+            available = self.tool_registry.list_tools()
             raise ValueError(
-                f"No tool named '{tool_name}' found in the registry."
+                f"No tool named '{tool_name}' in the registry. "
+                f"Available tools: {available}"
             )
-
-        method = getattr(tool, method_name, None)
-        if not callable(method):
-            raise AttributeError(
-                f"Tool '{tool_name}' does not have method '{method_name}'."
-            )
-
-        return method(*args, **kwargs)
+        try:
+            return tool.function(**kwargs)
+        except Exception as e:
+            raise RuntimeError(f"Error executing tool '{tool_name}': {e}") from e
 
     def discover_tools(self) -> List[str]:
         """
@@ -187,5 +200,30 @@ class Agent(abc.ABC):
         :return: A list of message objects or dictionaries.
         """
         if not self.memory:
-            return ""
-        return self.memory.get_last_n_messages(thread_id, n)
+            return []
+        thread = self.memory.get_thread(thread_id)
+        if not thread:
+            return []
+        return thread.get_last_n_messages(n)
+
+    def _remember(self, thread_id: str, user_msg: str, assistant_response: str) -> None:
+        """
+        Persist the user message and the agent's response to memory.
+
+        Creates the thread automatically on first call. No-op when no memory
+        repository is configured.
+
+        :param thread_id:           Conversation thread identifier.
+        :param user_msg:            The user's input message.
+        :param assistant_response:  The agent's response to store.
+        """
+        if not self.memory:
+            return
+        if self.memory.get_thread(thread_id) is None:
+            self.memory.create_thread(Thread(thread_id=thread_id))
+        self.memory.append_message(
+            thread_id, Message(thread_id=thread_id, sender="user", content=user_msg)
+        )
+        self.memory.append_message(
+            thread_id, Message(thread_id=thread_id, sender=self.agent_name, content=assistant_response)
+        )

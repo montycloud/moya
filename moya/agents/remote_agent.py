@@ -25,7 +25,7 @@ class RemoteAgent(Agent):
 
     def __init__(
         self,
-        config=RemoteAgentConfig
+        config: RemoteAgentConfig
     ):
         """
         Initialize a RemoteAgent.

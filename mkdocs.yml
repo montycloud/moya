@@ -1,16 +1,31 @@
-site_name: Moya Documentation
+site_name: MOYA Documentation
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
+  - Quickstart: quickstart.md
+  - Architecture: architecture.md
   - Agents: agents.md
-  - Memory: memory.md
   - Tools: tools.md
   - Orchestrators: orchestrators.md
-  - API Reference: reference.md
+  - Memory: memory.md
   - Examples: examples.md
+  - API Reference: reference.md
+  - ADRs:
+    - adr/
 
 theme:
   name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - content.code.copy
+
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 plugins:
   - search

@@ -45,23 +45,22 @@ class FileSystemRepository(Repository):
             "thread_id": thread.thread_id,
             "metadata": thread.metadata
         }
-        
-        # Write thread metadata and initial messages if any
+
+        # Write thread metadata (always newline-terminated so a later
+        # append_message starts on its own line) plus any initial messages.
         with open(file_path, 'w') as f:
-            json.dump(thread_data, f)
-            if thread.messages:
-                f.write("\n")
-                for msg in thread.messages:
-                    # Use raw message data for storage to preserve original format
-                    raw_data = {
-                        "message_id": msg.message_id,
-                        "thread_id": msg.thread_id,
-                        "sender": msg.sender,
-                        "content": msg.content,
-                        "timestamp": msg.timestamp.isoformat() if hasattr(msg, 'timestamp') else datetime.utcnow().isoformat(),
-                        "metadata": msg.metadata or {}
-                    }
-                    f.write(json.dumps(raw_data) + "\n")
+            f.write(json.dumps(thread_data) + "\n")
+            for msg in thread.messages:
+                # Use raw message data for storage to preserve original format
+                raw_data = {
+                    "message_id": msg.message_id,
+                    "thread_id": msg.thread_id,
+                    "sender": msg.sender,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat() if hasattr(msg, 'timestamp') else datetime.utcnow().isoformat(),
+                    "metadata": msg.metadata or {}
+                }
+                f.write(json.dumps(raw_data) + "\n")
 
     def get_thread(self, thread_id: str) -> Optional[Thread]:
         """

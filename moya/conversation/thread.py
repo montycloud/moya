@@ -5,7 +5,7 @@ Represents a conversation thread which consists of multiple messages.
 """
 
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from moya.conversation.message import Message
 
 
@@ -28,7 +28,7 @@ class Thread:
         metadata: Optional[dict] = None
     ):
         self.thread_id = thread_id
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
         self.messages: List[Message] = []
         self.participants = participants or []
         self.metadata = metadata or {}

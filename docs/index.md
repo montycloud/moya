@@ -1,24 +1,31 @@
-# Welcome to Moya
+# MOYA Documentation
 
-Moya is a modular and flexible framework for building AI-powered applications. It provides tools for creating agents, managing memory, orchestrating multi-agent systems, and more.
+MOYA is a lightweight, model-agnostic Python framework for building multi-agent AI systems.
 
-## Features
+## Navigation
 
-- **Agents**: Modular components for handling user interactions.
-- **Memory Management**: Built-in tools for storing and retrieving conversation history.
-- **Multi-Agent Systems**: Support for multiple specialized agents working together.
-- **Tool Registry**: Extend agent capabilities with external tools.
+| Document | What you'll find |
+|---|---|
+| [Architecture](architecture.md) | System design, component diagrams, data-flow walkthroughs, design principles |
+| [Quickstart](quickstart.md) | Installation and first working examples |
+| [Agents](agents.md) | All agent types, config options, streaming, custom agents |
+| [Tools](tools.md) | Defining tools, ToolRegistry, MCP integration |
+| [Orchestrators](orchestrators.md) | Simple, Multi-Agent, ReAct patterns; DelegationManager |
+| [Memory](memory.md) | Repository pattern, EphemeralMemory, FileSystemRepository |
+| [Examples](examples.md) | Walkthrough of the bundled example scripts |
+| [API Reference](reference.md) | Detailed module and method reference |
+| [ADRs](adr/) | Architecture Decision Records explaining key design choices |
 
-## Documentation
+## Getting Started
 
-Explore the following sections to learn more about Moya:
+```bash
+pip install "moya-ai[openai]"
+export OPENAI_API_KEY=sk-...
+```
 
-- [Quickstart Guide](quickstart.md): Get started with Moya.
-- [Agents](agents.md): Learn about the core components of Moya.
-- [Memory](memory.md): Understand how to manage and store information.
-- [Orchestrators](orchestrators.md): Coordinate actions of multiple agents.
-- [Tools](tools.md): Discover utility functions and components.
-- [Examples](examples.md): Explore example scripts to get started.
-- [Guides](guides.md): Detailed guides for using Moya effectively.
-- [Explanations](explanations.md): In-depth explanations of key concepts.
-- [API Reference](reference.md): Detailed reference for public modules and methods.
+```python
+from moya import create_agent
+
+agent = create_agent("openai", name="assistant", description="Helpful assistant")
+print(agent.handle_message("Hello, what can you do?"))
+```

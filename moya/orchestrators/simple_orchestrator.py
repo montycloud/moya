@@ -64,7 +64,13 @@ class SimpleOrchestrator(Orchestrator):
                 agent = self.agent_registry.get_agent(agent_list[0])
 
         if not agent:
-            return "[No suitable agent found to handle message.]"
+            searched = agent_name or self.default_agent_name or "<first available>"
+            registered = [a.name for a in self.agent_registry.list_agents()]
+            return (
+                f"[No agent found for thread '{thread_id}'. "
+                f"Looked for '{searched}'. "
+                f"Registered agents: {registered or ['none']}]"
+            )
 
         # 3. Let the agent handle the message with streaming support
         if stream_callback:

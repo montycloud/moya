@@ -50,6 +50,20 @@ azure = [
   "azure-identity>=1.21.0"
 ]
 
+a2a = [
+    "a2a-sdk>=1.0.3",
+    "httpx>=0.27.0",
+    "starlette>=0.40.0",
+    "sse-starlette>=2.0.0",
+    "uvicorn>=0.34.0",
+]
+
+mcp = [
+    "mcp>=1.0.0",
+]
+
+observability = []
+
 all = [
     "boto3>=1.36.9",
     "crewai>=0.100.1",
@@ -60,6 +74,13 @@ all = [
     "python-dotenv>=1.0.1",
     "openai>=1.60.1",
     "azure-identity>=1.21.0",
+    "mcp>=1.0.0",
+    "a2a-sdk>=1.0.3",
+    "httpx>=0.27.0",
+    "starlette>=0.40.0",
+    "sse-starlette>=2.0.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
     "mkdocs>=1.4.0",
     "mkdocs-material>=9.0.0"
 ]
@@ -75,10 +96,20 @@ packages = [
     "moya.agents",
     "moya.classifiers",
     "moya.conversation",
+    "moya.delegation",
+    "moya.flows",
+    "moya.mcp",
     "moya.memory",
     "moya.orchestrators",
     "moya.registry",
+    "moya.observability",
+    "moya.skills",
     "moya.tools",
-    "moya.utils"
+    "moya.utils",
+    "moya.a2a"
 ]
 
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
